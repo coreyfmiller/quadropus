@@ -3,19 +3,33 @@ import Image from 'next/image'
 const columns = [
   {
     title: 'Platform',
-    links: ['Build', 'Grow', 'Automate', 'Operate'],
+    links: [
+      { label: 'Build', href: '#platform' },
+      { label: 'Grow', href: '#platform' },
+      { label: 'Automate', href: '#platform' },
+      { label: 'Operate', href: '#platform' },
+    ],
   },
   {
     title: 'Company',
-    links: ['About', 'Careers', 'Contact', 'Press'],
+    links: [
+      { label: 'About', href: '#company' },
+      { label: 'Contact', href: 'mailto:hello@quadropus.ai' },
+    ],
   },
   {
     title: 'Resources',
-    links: ['Documentation', 'Blog', 'Changelog', 'Status'],
+    links: [
+      { label: 'Pricing', href: '#pricing' },
+      { label: 'How It Works', href: '#how-it-works' },
+    ],
   },
   {
     title: 'Legal',
-    links: ['Privacy', 'Terms', 'Security'],
+    links: [
+      { label: 'Privacy', href: '#' },
+      { label: 'Terms', href: '#' },
+    ],
   },
 ]
 
@@ -46,12 +60,12 @@ export function SiteFooter() {
               </h2>
               <ul className="mt-5 flex flex-col gap-3">
                 {column.links.map((link) => (
-                  <li key={link}>
+                  <li key={link.label}>
                     <a
-                      href="#"
+                      href={link.href}
                       className="text-[13px] font-light text-muted-foreground transition-colors hover:text-foreground"
                     >
-                      {link}
+                      {link.label}
                     </a>
                   </li>
                 ))}

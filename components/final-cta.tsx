@@ -34,7 +34,7 @@ export function FinalCta() {
         </a>
 
         <p className="mt-7 text-[13px] font-light text-muted-foreground">
-          Join 100+ businesses already on the platform.
+          Be among the first to experience the future of business AI.
         </p>
       </Reveal>
     </section>
