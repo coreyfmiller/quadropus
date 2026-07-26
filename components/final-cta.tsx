@@ -1,5 +1,5 @@
-import { ArrowRight } from 'lucide-react'
 import { Reveal } from '@/components/reveal'
+import { WaitlistForm } from '@/components/waitlist-form'
 
 export function FinalCta() {
   return (
@@ -21,17 +21,7 @@ export function FinalCta() {
           Ready to run your business with AI?
         </h2>
 
-        <a
-          href="#top"
-          className="group mt-10 inline-flex items-center justify-center gap-2 rounded-xl px-8 py-4 text-[15px] font-medium text-primary-foreground shadow-[0_16px_60px_-16px_var(--brand)] transition-transform hover:-translate-y-0.5"
-          style={{
-            backgroundImage:
-              'linear-gradient(100deg, var(--brand), var(--brand-alt))',
-          }}
-        >
-          Get Started Free
-          <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
-        </a>
+        <WaitlistForm className="mt-10 w-full max-w-md" />
 
         <p className="mt-7 text-[13px] font-light text-muted-foreground">
           Be among the first to experience the future of business AI.

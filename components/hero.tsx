@@ -1,6 +1,6 @@
 import Image from 'next/image'
-import { ArrowRight } from 'lucide-react'
 import { Reveal } from '@/components/reveal'
+import { WaitlistForm } from '@/components/waitlist-form'
 
 export function Hero() {
   return (
@@ -41,29 +41,11 @@ export function Hero() {
           </Reveal>
 
           <Reveal delay={0.18}>
-            <div className="mt-10 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
-              <a
-                href="#get-started"
-                className="group inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3.5 text-sm font-medium text-primary-foreground shadow-[0_10px_40px_-12px_var(--brand)] transition-transform hover:-translate-y-0.5"
-                style={{
-                  backgroundImage:
-                    'linear-gradient(100deg, var(--brand), var(--brand-alt))',
-                }}
-              >
-                Get Started Free
-                <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
-              </a>
-              <a
-                href="#how-it-works"
-                className="inline-flex items-center justify-center rounded-xl border border-border glass px-6 py-3.5 text-sm font-light text-foreground transition-colors hover:border-foreground/25"
-              >
-                See How It Works
-              </a>
-            </div>
+            <WaitlistForm className="mt-10 max-w-md" />
           </Reveal>
 
           <Reveal delay={0.24}>
-            <p className="mt-8 text-[12.5px] font-light text-muted-foreground/70">
+            <p className="mt-6 text-[12.5px] font-light text-muted-foreground/70">
               No credit card required · Free tier available · Setup in under 5
               minutes
             </p>
