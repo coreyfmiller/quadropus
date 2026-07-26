@@ -3,38 +3,51 @@ import { Reveal } from '@/components/reveal'
 
 const tiers = [
   {
-    name: 'Starter',
-    price: '$97',
-    summary: 'AI monitoring, analytics, basic automation',
+    name: 'Essentials',
+    price: '$197',
+    setup: '$3,500 one-time setup',
+    summary: 'Your complete online presence, handled.',
     features: [
-      'AI business monitoring',
-      'Unified analytics',
-      'Basic automation',
-      'Email support',
+      'Custom website (5-10 pages)',
+      'Full SEO setup (schema, meta, sitemap)',
+      'AI chat agent on your site',
+      'Google Business Profile optimization',
+      'Website hosting + maintenance',
+      'Unlimited content edits',
+      'Monthly SEO + AI visibility monitoring',
+      'Monthly performance report',
     ],
     featured: false,
   },
   {
     name: 'Growth',
     price: '$497',
-    summary: 'Full website, AI agents, content, SEO',
+    setup: '$3,500 one-time setup',
+    summary: 'Everything in Essentials plus active growth.',
     features: [
-      'Custom website & content',
-      'AI chat & voice agents',
-      'SEO + paid campaigns',
-      'Priority support',
+      'Everything in Essentials',
+      '4 SEO blog posts per month',
+      'Appointment booking integration',
+      'Automated lead follow-up emails',
+      'Google Business posts (3/week)',
+      'Review response management',
+      'AI visibility tracking (Duelly)',
+      'Chat agent monthly tuning',
     ],
     featured: true,
   },
   {
     name: 'Scale',
-    price: '$1,497',
-    summary: 'Complete AI operations team for your business',
+    price: '$997',
+    setup: '$3,500 one-time setup',
+    summary: 'Your full AI-powered marketing team.',
     features: [
       'Everything in Growth',
-      'Multi-channel automation',
-      'Business intelligence',
-      'Dedicated strategist',
+      'Google Ads setup + management',
+      'Monthly strategy call (30 min)',
+      'AI-generated growth recommendations',
+      'Priority support',
+      'Advanced analytics dashboard',
     ],
     featured: false,
   },
@@ -46,8 +59,11 @@ export function Pricing() {
       <div className="mx-auto max-w-6xl">
         <Reveal className="text-center">
           <h2 className="text-3xl font-semibold tracking-[-0.02em] text-balance text-foreground sm:text-4xl lg:text-5xl">
-            Transparent pricing. No surprises.
+            Simple pricing. Real results.
           </h2>
+          <p className="mx-auto mt-5 max-w-[50ch] text-base leading-relaxed font-light text-muted-foreground">
+            One setup fee to build everything. One monthly fee to keep it running and growing.
+          </p>
         </Reveal>
 
         <ul className="mt-16 grid gap-4 lg:mt-20 lg:grid-cols-3">
@@ -78,6 +94,10 @@ export function Pricing() {
                     <span className="text-sm font-light text-muted-foreground">
                       /mo
                     </span>
+                  </p>
+
+                  <p className="mt-2 text-[12px] font-light text-brand">
+                    {tier.setup}
                   </p>
 
                   <p className="mt-4 text-[14.5px] leading-relaxed font-light text-foreground/80">
@@ -115,7 +135,7 @@ export function Pricing() {
                         : undefined
                     }
                   >
-                    Choose {tier.name}
+                    Get Started
                   </a>
                 </article>
               </Reveal>
@@ -123,16 +143,10 @@ export function Pricing() {
           ))}
         </ul>
 
-        <Reveal delay={0.1} className="mt-14 flex flex-col items-center gap-6">
-          <p className="text-[13px] font-light text-muted-foreground">
-            All plans include a 14-day free trial. Cancel anytime.
+        <Reveal delay={0.1} className="mt-14 flex flex-col items-center gap-4">
+          <p className="text-[13px] font-light text-muted-foreground text-center max-w-lg">
+            Every plan includes a custom website, AI chat agent, full SEO, and hosting. No hidden fees. Cancel anytime.
           </p>
-          <a
-            href="#get-started"
-            className="inline-flex items-center justify-center rounded-xl border border-border glass px-6 py-3.5 text-sm font-light text-foreground transition-colors hover:border-brand/50"
-          >
-            Start Free Trial
-          </a>
         </Reveal>
       </div>
     </section>

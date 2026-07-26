@@ -38,10 +38,11 @@ export default function TermsPage() {
         <section>
           <h2 className="text-lg font-medium text-foreground">3. Subscription and Payment</h2>
           <ul className="mt-3 list-disc pl-6 space-y-2">
-            <li>Subscriptions are billed monthly in advance via Stripe.</li>
-            <li>Prices are listed in the currency displayed at checkout (CAD or USD).</li>
+            <li>A one-time setup fee covers your initial website build, AI chat agent, SEO configuration, and onboarding.</li>
+            <li>Monthly subscriptions are billed in advance via Stripe.</li>
+            <li>Prices are listed in USD. Canadian clients may be charged equivalent CAD.</li>
             <li>You may cancel at any time. Cancellation takes effect at the end of your current billing period.</li>
-            <li>No refunds are provided for partial months.</li>
+            <li>No refunds are provided for partial months or the one-time setup fee after work has begun.</li>
             <li>We may change pricing with 30 days written notice. Existing subscribers keep their current rate for 60 days after notice.</li>
             <li>Failed payments: We will retry 3 times over 10 days. If payment fails, your account may be suspended.</li>
           </ul>
