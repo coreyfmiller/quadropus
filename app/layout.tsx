@@ -50,6 +50,14 @@ export const metadata: Metadata = {
     siteName: 'Quadropus.ai',
     type: 'website',
     locale: 'en_CA',
+    images: [
+      {
+        url: '/og-image.png',
+        width: 1200,
+        height: 630,
+        alt: 'Quadropus.ai — One AI platform for your entire business',
+      },
+    ],
   },
   twitter: {
     card: 'summary_large_image',
@@ -57,6 +65,7 @@ export const metadata: Metadata = {
     description:
       'Build. Grow. Automate. Operate. The AI operating system for SMBs.',
     creator: '@quadropusai',
+    images: ['/og-image.png'],
   },
   alternates: {
     canonical: 'https://quadropus.ai',
