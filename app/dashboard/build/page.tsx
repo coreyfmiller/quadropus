@@ -24,6 +24,7 @@ async function getSites() {
       customDomains: p.alias || [],
       updatedAt: p.updatedAt,
       repo: p.link?.repo || null,
+      vercelUrl: `https://vercel.com/${teamId}/${p.name}`,
     }))
   } catch {
     return []

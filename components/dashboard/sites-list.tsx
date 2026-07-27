@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from 'react'
-import { Globe, ExternalLink, GitBranch, Search, Clock, RefreshCw, Tag } from 'lucide-react'
+import { Globe, ExternalLink, GitBranch, Search, Clock, RefreshCw, Tag, Settings2 } from 'lucide-react'
 
 interface Site {
   id: string
@@ -11,6 +11,7 @@ interface Site {
   customDomains: string[]
   updatedAt: number
   repo: string | null
+  vercelUrl?: string
 }
 
 type Category = 'all' | 'client' | 'personal' | 'demo' | 'uncategorized'
@@ -235,6 +236,17 @@ export function SitesList({ initialSites }: { initialSites: Site[] }) {
                       title="Visit site"
                     >
                       <ExternalLink className="size-3.5" />
+                    </a>
+                  )}
+                  {site.vercelUrl && (
+                    <a
+                      href={site.vercelUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
+                      title="Vercel project"
+                    >
+                      <Settings2 className="size-3.5" />
                     </a>
                   )}
                   {site.repo && (

@@ -25,6 +25,7 @@ export async function GET() {
       customDomains: p.alias || [],
       updatedAt: p.updatedAt,
       repo: p.link?.repo || null,
+      vercelUrl: `https://vercel.com/${teamId}/${p.name}`,
     }))
 
     return NextResponse.json({ sites })
