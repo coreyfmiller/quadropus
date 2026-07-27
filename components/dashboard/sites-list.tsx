@@ -74,6 +74,113 @@ function frameworkBadge(fw: string) {
   )
 }
 
+function SiteCard({
+  site,
+  borderColor,
+  bgColor,
+  category,
+  editingId,
+  setEditingId,
+  onCategoryChange,
+}: {
+  site: Site
+  borderColor: string
+  bgColor: string
+  category: string
+  editingId: string | null
+  setEditingId: (id: string | null) => void
+  onCategoryChange: (id: string, cat: string) => void
+}) {
+  return (
+    <div className={`group rounded-xl border ${borderColor} ${bgColor} p-4 transition-colors hover:border-brand/40`}>
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-2 min-w-0">
+          <Globe className="size-4 shrink-0 text-brand/70" strokeWidth={1.5} />
+          <h3 className="text-[13px] font-medium text-foreground truncate">{site.name}</h3>
+        </div>
+        {frameworkBadge(site.framework)}
+      </div>
+
+      {site.customDomains.length > 0 && (
+        <p className="mt-2 text-[11px] font-light text-muted-foreground truncate">
+          {site.customDomains[0]}
+        </p>
+      )}
+
+      {site.url && !site.customDomains.length && (
+        <p className="mt-2 text-[11px] font-light text-muted-foreground truncate">
+          {site.url}
+        </p>
+      )}
+
+      <div className="mt-3 flex items-center justify-between">
+        <div className="flex items-center gap-1.5 text-[10.5px] text-muted-foreground">
+          <Clock className="size-3" />
+          {timeAgo(site.updatedAt)}
+        </div>
+        <div className="flex items-center gap-2">
+          {editingId === site.id ? (
+            <select
+              value={category}
+              onChange={(e) => onCategoryChange(site.id, e.target.value)}
+              onBlur={() => setEditingId(null)}
+              autoFocus
+              className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-foreground focus:outline-none"
+            >
+              <option value="uncategorized">Uncategorized</option>
+              <option value="client">Client</option>
+              <option value="personal">Personal</option>
+              <option value="demo">Demo</option>
+              <option value="experimental">Experimental</option>
+            </select>
+          ) : (
+            <button
+              onClick={() => setEditingId(site.id)}
+              className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
+              title="Set category"
+            >
+              <Tag className="size-3.5" />
+            </button>
+          )}
+          {site.url && (
+            <a
+              href={`https://${site.customDomains[0] || site.url}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
+              title="Visit site"
+            >
+              <ExternalLink className="size-3.5" />
+            </a>
+          )}
+          {site.vercelUrl && (
+            <a
+              href={site.vercelUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
+              title="Vercel project"
+            >
+              <Settings2 className="size-3.5" />
+            </a>
+          )}
+          {site.repo && (
+            <a
+              href={`https://github.com/${site.repo}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
+              title="View repo"
+            >
+              <GitBranch className="size-3.5" />
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function SitesList({ initialSites }: { initialSites: Site[] }) {
   const [sites, setSites] = useState(initialSites)
   const [filter, setFilter] = useState('')
@@ -162,113 +269,73 @@ export function SitesList({ initialSites }: { initialSites: Site[] }) {
         })}
       </div>
 
-      {/* Sites grid */}
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {filtered.map((site) => {
-          const cat = getSiteCategory(site.id)
-          const badge = CATEGORY_BADGES[cat]
+      {/* Sites - grouped or filtered */}
+      {activeCategory === 'all' ? (
+        // Grouped view
+        <div className="mt-4 space-y-8">
+          {CATEGORIES.filter((c) => c.id !== 'all').map((cat) => {
+            const catSites = filtered.filter((s) => getSiteCategory(s.id) === cat.id)
+            if (catSites.length === 0) return null
+            const borderColors: Record<string, string> = {
+              client: 'border-green-500/20',
+              personal: 'border-brand/20',
+              demo: 'border-yellow-500/20',
+              experimental: 'border-orange-500/20',
+              uncategorized: 'border-border',
+            }
+            const bgColors: Record<string, string> = {
+              client: 'bg-green-500/[0.03]',
+              personal: 'bg-brand/[0.03]',
+              demo: 'bg-yellow-500/[0.03]',
+              experimental: 'bg-orange-500/[0.03]',
+              uncategorized: 'bg-transparent',
+            }
+            const borderColor = borderColors[cat.id] || 'border-border'
+            const bgColor = bgColors[cat.id] || 'bg-transparent'
 
-          return (
-            <div
-              key={site.id}
-              className="group rounded-xl border border-border bg-secondary/40 p-4 transition-colors hover:border-brand/40"
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-2 min-w-0">
-                  <Globe className="size-4 shrink-0 text-brand/70" strokeWidth={1.5} />
-                  <h3 className="text-[13px] font-medium text-foreground truncate">{site.name}</h3>
-                </div>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  {badge && (
-                    <span className={`rounded px-1.5 py-0.5 text-[9px] font-medium ${badge.className}`}>
-                      {badge.label}
-                    </span>
-                  )}
-                  {frameworkBadge(site.framework)}
-                </div>
-              </div>
-
-              {site.customDomains.length > 0 && (
-                <p className="mt-2 text-[11px] font-light text-muted-foreground truncate">
-                  {site.customDomains[0]}
-                </p>
-              )}
-
-              {site.url && !site.customDomains.length && (
-                <p className="mt-2 text-[11px] font-light text-muted-foreground truncate">
-                  {site.url}
-                </p>
-              )}
-
-              <div className="mt-3 flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-[10.5px] text-muted-foreground">
-                  <Clock className="size-3" />
-                  {timeAgo(site.updatedAt)}
-                </div>
-                <div className="flex items-center gap-2">
-                  {/* Category picker */}
-                  {editingId === site.id ? (
-                    <select
-                      value={cat}
-                      onChange={(e) => handleCategoryChange(site.id, e.target.value)}
-                      onBlur={() => setEditingId(null)}
-                      autoFocus
-                      className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-foreground focus:outline-none"
-                    >
-                      <option value="uncategorized">Uncategorized</option>
-                      <option value="client">Client</option>
-                      <option value="personal">Personal</option>
-                      <option value="demo">Demo</option>
-                      <option value="experimental">Experimental</option>
-                    </select>
-                  ) : (
-                    <button
-                      onClick={() => setEditingId(site.id)}
-                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
-                      title="Set category"
-                    >
-                      <Tag className="size-3.5" />
-                    </button>
-                  )}
-                  {site.url && (
-                    <a
-                      href={`https://${site.customDomains[0] || site.url}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
-                      title="Visit site"
-                    >
-                      <ExternalLink className="size-3.5" />
-                    </a>
-                  )}
-                  {site.vercelUrl && (
-                    <a
-                      href={site.vercelUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
-                      title="Vercel project"
-                    >
-                      <Settings2 className="size-3.5" />
-                    </a>
-                  )}
-                  {site.repo && (
-                    <a
-                      href={`https://github.com/${site.repo}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
-                      title="View repo"
-                    >
-                      <GitBranch className="size-3.5" />
-                    </a>
-                  )}
+            return (
+              <div key={cat.id}>
+                <h3 className={`text-[11px] font-semibold tracking-[0.14em] uppercase ${cat.color}`}>
+                  {cat.label} ({catSites.length})
+                </h3>
+                <div className={`mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3`}>
+                  {catSites.map((site) => (
+                    <SiteCard
+                      key={site.id}
+                      site={site}
+                      borderColor={borderColor}
+                      bgColor={bgColor}
+                      category={cat.id}
+                      editingId={editingId}
+                      setEditingId={setEditingId}
+                      onCategoryChange={handleCategoryChange}
+                    />
+                  ))}
                 </div>
               </div>
-            </div>
-          )
-        })}
-      </div>
+            )
+          })}
+        </div>
+      ) : (
+        // Filtered flat view
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {filtered.map((site) => {
+            const cat = getSiteCategory(site.id)
+            return (
+              <SiteCard
+                key={site.id}
+                site={site}
+                borderColor="border-border"
+                bgColor="bg-secondary/40"
+                category={cat}
+                editingId={editingId}
+                setEditingId={setEditingId}
+                onCategoryChange={handleCategoryChange}
+              />
+            )
+          })}
+        </div>
+      )}
 
       {filtered.length === 0 && (
         <p className="mt-8 text-center text-sm text-muted-foreground">No sites found.</p>
