@@ -1,6 +1,38 @@
 ﻿import { Boxes } from 'lucide-react'
+import { SitesList } from '@/components/dashboard/sites-list'
 
-export default function BuildPage() {
+export const dynamic = 'force-dynamic'
+
+async function getSites() {
+  const token = process.env.VERCEL_API_TOKEN
+  const teamId = process.env.VERCEL_TEAM_ID
+  if (!token || !teamId) return []
+
+  try {
+    const res = await fetch(`https://api.vercel.com/v9/projects?teamId=${teamId}&limit=30`, {
+      headers: { Authorization: `Bearer ${token}` },
+      next: { revalidate: 60 },
+    })
+    if (!res.ok) return []
+    const data = await res.json()
+
+    return data.projects.map((p: any) => ({
+      id: p.id,
+      name: p.name,
+      framework: p.framework || 'unknown',
+      url: p.targets?.production?.url || p.latestDeployments?.[0]?.url || null,
+      customDomains: p.alias || [],
+      updatedAt: p.updatedAt,
+      repo: p.link?.repo || null,
+    }))
+  } catch {
+    return []
+  }
+}
+
+export default async function BuildPage() {
+  const sites = await getSites()
+
   return (
     <div className="p-6 lg:p-8">
       <div className="flex items-center gap-3">
@@ -9,11 +41,14 @@ export default function BuildPage() {
         </div>
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-foreground">Build</h1>
-          <p className="text-[13px] font-light text-muted-foreground">Manage your websites and digital presence.</p>
+          <p className="text-[13px] font-light text-muted-foreground">
+            All your websites and deployments. {sites.length} projects on Vercel.
+          </p>
         </div>
       </div>
-      <div className="mt-8 rounded-xl border border-dashed border-border/60 bg-card/30 p-12 text-center">
-        <p className="text-sm text-muted-foreground">Coming soon. This section will display real data from your connected services.</p>
+
+      <div className="mt-8">
+        <SitesList sites={sites} />
       </div>
     </div>
   )
