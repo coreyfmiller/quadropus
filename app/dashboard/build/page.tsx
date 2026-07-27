@@ -9,9 +9,9 @@ async function getSites() {
   if (!token || !teamId) return []
 
   try {
-    const res = await fetch(`https://api.vercel.com/v9/projects?teamId=${teamId}&limit=30`, {
+    const res = await fetch(`https://api.vercel.com/v9/projects?teamId=${teamId}&limit=50`, {
       headers: { Authorization: `Bearer ${token}` },
-      next: { revalidate: 60 },
+      cache: 'no-store',
     })
     if (!res.ok) return []
     const data = await res.json()
@@ -48,7 +48,7 @@ export default async function BuildPage() {
       </div>
 
       <div className="mt-8">
-        <SitesList sites={sites} />
+        <SitesList initialSites={sites} />
       </div>
     </div>
   )
