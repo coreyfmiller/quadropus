@@ -14,13 +14,14 @@ interface Site {
   vercelUrl?: string
 }
 
-type Category = 'all' | 'client' | 'personal' | 'demo' | 'uncategorized'
+type Category = 'all' | 'client' | 'personal' | 'demo' | 'experimental' | 'uncategorized'
 
 const CATEGORIES: { id: Category; label: string; color: string }[] = [
   { id: 'all', label: 'All', color: 'text-foreground' },
   { id: 'client', label: 'Client', color: 'text-green-500' },
   { id: 'personal', label: 'Personal', color: 'text-brand' },
   { id: 'demo', label: 'Demo', color: 'text-yellow-500' },
+  { id: 'experimental', label: 'Experimental', color: 'text-orange-500' },
   { id: 'uncategorized', label: 'Uncategorized', color: 'text-muted-foreground' },
 ]
 
@@ -28,6 +29,7 @@ const CATEGORY_BADGES: Record<string, { label: string; className: string }> = {
   client: { label: 'Client', className: 'text-green-500 bg-green-500/10' },
   personal: { label: 'Personal', className: 'text-brand bg-brand/10' },
   demo: { label: 'Demo', className: 'text-yellow-500 bg-yellow-500/10' },
+  experimental: { label: 'Experimental', className: 'text-orange-500 bg-orange-500/10' },
 }
 
 const STORAGE_KEY = 'quadropus_site_categories'
@@ -217,6 +219,7 @@ export function SitesList({ initialSites }: { initialSites: Site[] }) {
                       <option value="client">Client</option>
                       <option value="personal">Personal</option>
                       <option value="demo">Demo</option>
+                      <option value="experimental">Experimental</option>
                     </select>
                   ) : (
                     <button
