@@ -21,7 +21,7 @@ export function HowItWorks() {
       <div className="mx-auto max-w-6xl">
         <Reveal className="text-center">
           <h2 className="text-3xl font-semibold tracking-[-0.02em] text-balance text-foreground sm:text-4xl lg:text-5xl">
-            Live in 5 minutes.
+            From zero to live in days, not months.
           </h2>
         </Reveal>
 
