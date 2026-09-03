@@ -1,7 +1,7 @@
 ﻿'use client'
 
 import { useState } from 'react'
-import { Lightbulb, Sparkles, Loader2, Check, ExternalLink } from 'lucide-react'
+import { Lightbulb, Sparkles, Loader2, Check, ExternalLink, ShieldAlert, Scale, Info } from 'lucide-react'
 
 type NameStyle = 'evocative' | 'coined' | 'compound' | 'playful' | 'literal'
 type Perspective = 'customer' | 'buyer' | 'both'
@@ -14,6 +14,13 @@ interface DomainResult {
   registerUrl: string | null
 }
 
+interface TrademarkCheck {
+  flag: 'clear-signal' | 'caution'
+  reason: string
+  usptoUrl: string
+  cipoUrl: string
+}
+
 interface IdeaResult {
   idea: string
   name: string
@@ -21,6 +28,7 @@ interface IdeaResult {
   why: string
   audience: string
   available: DomainResult[]
+  trademark: TrademarkCheck
 }
 
 const STYLES: { id: NameStyle; label: string; hint: string }[] = [
@@ -103,6 +111,22 @@ export default function GrowPage() {
           <p className="text-[13px] font-light text-muted-foreground">
             Brand-strategist naming. Shows only ideas with an available .com or .ai.
           </p>
+        </div>
+      </div>
+
+      {/* What gets checked (and what does not) */}
+      <div className="mt-5 flex items-start gap-2.5 rounded-lg border border-border/70 bg-secondary/30 p-3.5">
+        <Info className="mt-0.5 size-4 shrink-0 text-brand" strokeWidth={1.5} />
+        <div className="text-[12px] leading-relaxed text-muted-foreground">
+          <span className="font-medium text-foreground">What we check for each name:</span>{' '}
+          domain availability (<span className="text-foreground">.com is confirmed</span> against the
+          registry; <span className="text-foreground">.ai is a likely signal</span> from DNS), plus a{' '}
+          <span className="text-foreground">preliminary trademark flag</span> against well-known brands.
+          <br />
+          <span className="font-medium text-foreground">What this is NOT:</span> legal clearance. A free
+          domain can still infringe a trademark. Before you register or build on a name, run the linked{' '}
+          <span className="text-foreground">USPTO</span> (US) and <span className="text-foreground">CIPO</span>{' '}
+          (Canada) searches, and check social handles. For anything real, confirm with a lawyer.
         </div>
       </div>
 
@@ -229,6 +253,35 @@ export default function GrowPage() {
                       </span>
                     </div>
                   ))}
+                </div>
+
+                {/* Trademark signal (preliminary, not clearance) */}
+                <div className="mt-3 border-t border-border/50 pt-3">
+                  <div className="flex items-center gap-1.5">
+                    {r.trademark.flag === 'caution' ? (
+                      <ShieldAlert className="size-3.5 text-amber-400" />
+                    ) : (
+                      <Scale className="size-3.5 text-muted-foreground" />
+                    )}
+                    <span
+                      className={`text-[11px] font-medium ${
+                        r.trademark.flag === 'caution' ? 'text-amber-400' : 'text-muted-foreground'
+                      }`}
+                    >
+                      {r.trademark.flag === 'caution' ? 'Trademark: caution' : 'Trademark: no obvious conflict'}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[10.5px] leading-snug text-muted-foreground/80">
+                    {r.trademark.reason} Verify:
+                    {' '}
+                    <a href={r.trademark.usptoUrl} target="_blank" rel="noopener noreferrer" className="text-brand hover:underline">
+                      USPTO
+                    </a>
+                    {' · '}
+                    <a href={r.trademark.cipoUrl} target="_blank" rel="noopener noreferrer" className="text-brand hover:underline">
+                      CIPO
+                    </a>
+                  </p>
                 </div>
               </div>
             ))}

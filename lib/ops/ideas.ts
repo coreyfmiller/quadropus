@@ -8,6 +8,7 @@
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { generateText } from 'ai'
 import { candidatesFor, checkDomains, type DomainResult } from './domains'
+import { checkTrademark, type TrademarkCheck } from './trademark'
 
 export type NameStyle = 'evocative' | 'coined' | 'compound' | 'playful' | 'literal'
 export type Perspective = 'customer' | 'buyer' | 'both'
@@ -19,6 +20,7 @@ export interface IdeaResult {
   why: string // marketing rationale: why this name works
   audience: string
   available: DomainResult[] // only the AVAILABLE domains for this name (.com confirmed / .ai likely)
+  trademark: TrademarkCheck // PRELIMINARY signal + links to official searches (not legal clearance)
 }
 
 const STYLE_GUIDANCE: Record<NameStyle, string> = {
@@ -191,7 +193,15 @@ export async function findAvailableIdeas(opts: FindOptions): Promise<IdeaResult[
         .map((d) => byDomain.get(d))
         .filter((r): r is DomainResult => !!r && r.status === 'available')
       if (available.length > 0) {
-        results.push({ idea: s.idea, name: s.name, tagline: s.tagline, why: s.why, audience: s.audience, available })
+        results.push({
+          idea: s.idea,
+          name: s.name,
+          tagline: s.tagline,
+          why: s.why,
+          audience: s.audience,
+          available,
+          trademark: checkTrademark(s.name),
+        })
       }
     }
 
