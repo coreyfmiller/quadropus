@@ -1,9 +1,10 @@
-import { findAvailableIdeas, type NameStyle } from '@/lib/ops/ideas'
+import { findAvailableIdeas, type NameStyle, type Perspective } from '@/lib/ops/ideas'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
 
 const VALID_STYLES: NameStyle[] = ['evocative', 'coined', 'compound', 'playful', 'literal']
+const VALID_PERSPECTIVES: Perspective[] = ['customer', 'buyer', 'both']
 
 /**
  * POST { niche?, styles?: NameStyle[], target?: number }
@@ -16,11 +17,13 @@ const VALID_STYLES: NameStyle[] = ['evocative', 'coined', 'compound', 'playful',
 export async function POST(request: Request) {
   let niche = ''
   let styles: NameStyle[] = []
+  let perspective: Perspective = 'both'
   let target = 20
   try {
     const body = await request.json()
     if (typeof body?.niche === 'string') niche = body.niche
     if (Array.isArray(body?.styles)) styles = body.styles.filter((s: unknown) => VALID_STYLES.includes(s as NameStyle))
+    if (VALID_PERSPECTIVES.includes(body?.perspective)) perspective = body.perspective
     if (typeof body?.target === 'number') target = Math.min(Math.max(body.target, 1), 30)
   } catch {
     // defaults are fine
@@ -34,6 +37,7 @@ export async function POST(request: Request) {
         const results = await findAvailableIdeas({
           niche,
           styles,
+          perspective,
           target,
           onProgress: (info) => send({ type: 'progress', ...info }),
         })

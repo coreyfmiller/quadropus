@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Lightbulb, Sparkles, Loader2, Check, ExternalLink } from 'lucide-react'
 
 type NameStyle = 'evocative' | 'coined' | 'compound' | 'playful' | 'literal'
+type Perspective = 'customer' | 'buyer' | 'both'
 
 interface DomainResult {
   domain: string
@@ -16,6 +17,7 @@ interface DomainResult {
 interface IdeaResult {
   idea: string
   name: string
+  tagline: string
   why: string
   audience: string
   available: DomainResult[]
@@ -29,9 +31,16 @@ const STYLES: { id: NameStyle; label: string; hint: string }[] = [
   { id: 'literal', label: 'Literal', hint: 'Clear and descriptive' },
 ]
 
+const PERSPECTIVES: { id: Perspective; label: string; hint: string }[] = [
+  { id: 'customer', label: 'End user', hint: 'The person using it is the hero' },
+  { id: 'buyer', label: 'Buyer', hint: 'The business purchasing it is the hero' },
+  { id: 'both', label: 'Both', hint: 'Works for both sides of a marketplace' },
+]
+
 export default function GrowPage() {
   const [niche, setNiche] = useState('')
   const [styles, setStyles] = useState<NameStyle[]>([])
+  const [perspective, setPerspective] = useState<Perspective>('both')
   const [results, setResults] = useState<IdeaResult[]>([])
   const [running, setRunning] = useState(false)
   const [progress, setProgress] = useState<{ checked: number; found: number } | null>(null)
@@ -51,7 +60,7 @@ export default function GrowPage() {
       const res = await fetch('/api/ops/ideas', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ niche, styles, target: 20 }),
+        body: JSON.stringify({ niche, styles, perspective, target: 20 }),
       })
       if (!res.ok || !res.body) {
         const d = await res.json().catch(() => ({}))
@@ -132,6 +141,29 @@ export default function GrowPage() {
           </span>
         </div>
 
+        {/* Perspective / who is the hero */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Who is the hero:</span>
+          {PERSPECTIVES.map((p) => {
+            const active = perspective === p.id
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setPerspective(p.id)}
+                title={p.hint}
+                className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                  active
+                    ? 'border-brand bg-brand/15 font-medium text-foreground'
+                    : 'border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                }`}
+              >
+                {p.label}
+              </button>
+            )
+          })}
+        </div>
+
         <button
           type="submit"
           disabled={running}
@@ -165,8 +197,9 @@ export default function GrowPage() {
             {results.map((r) => (
               <div key={r.name} className="flex flex-col rounded-xl border border-border bg-secondary/40 p-5">
                 <h3 className="font-display text-lg font-bold text-foreground">{r.name}</h3>
-                {r.why && <p className="mt-1 text-[12px] italic text-brand/90">{r.why}</p>}
+                {r.tagline && <p className="mt-0.5 text-sm font-medium text-brand">{r.tagline}</p>}
                 <p className="mt-2 flex-1 text-sm leading-relaxed text-muted-foreground">{r.idea}</p>
+                {r.why && <p className="mt-2 text-[12px] italic text-muted-foreground/80">{r.why}</p>}
                 {r.audience && (
                   <p className="mt-2 text-[11px] uppercase tracking-wide text-muted-foreground/70">
                     For: {r.audience}

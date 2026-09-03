@@ -10,10 +10,12 @@ import { generateText } from 'ai'
 import { candidatesFor, checkDomains, type DomainResult } from './domains'
 
 export type NameStyle = 'evocative' | 'coined' | 'compound' | 'playful' | 'literal'
+export type Perspective = 'customer' | 'buyer' | 'both'
 
 export interface IdeaResult {
   idea: string // the underlying business/product idea (one line)
   name: string // the chosen brand name
+  tagline: string // short positioning line, e.g. "Your next role. Found."
   why: string // marketing rationale: why this name works
   audience: string
   available: DomainResult[] // only the AVAILABLE domains for this name (.com confirmed / .ai likely)
@@ -32,46 +34,63 @@ const STYLE_GUIDANCE: Record<NameStyle, string> = {
     'Clear, descriptive names a customer instantly understands, made distinctive with an unexpected but real word.',
 }
 
-function buildSystem(styles: NameStyle[]): string {
+const PERSPECTIVE_GUIDANCE: Record<Perspective, string> = {
+  customer:
+    'The END USER / customer is the hero. The name should feel welcoming and aspirational to the person USING the product (e.g. for a job site, the job seeker: "find your next role"), not to the business buying it.',
+  buyer:
+    'The BUYER / business is the hero. The name should sound credible, premium, and results-oriented to the company purchasing this (e.g. for a job site, the employer/recruiter).',
+  both:
+    'The name must work for BOTH sides of the marketplace, with a positioning line that flips cleanly (e.g. "Your next hire. Found." / "Your next role. Found.").',
+}
+
+function buildSystem(styles: NameStyle[], perspective: Perspective): string {
   const styleText =
     styles.length > 0
       ? `Use these naming styles (mix across your suggestions):\n${styles
           .map((s) => `- ${s.toUpperCase()}: ${STYLE_GUIDANCE[s]}`)
           .join('\n')}`
-      : `Use a mix of evocative real words, fresh coined words, and natural two-word compounds. Avoid tired startup patterns (-ify, -ly, -ora, -ixa, vox-, -match).`
+      : `Use a mix: strong single real words (Vetted, Found, Merit, Beacon), fresh coined words that sound like a real company, and natural two-word compounds (RoleCall, FirstRound, NextRole). Avoid tired startup patterns (-ify, -ly, -ora, -ixa, vox-, -match).`
 
-  return `You are a world-class brand strategist and naming expert. You name companies and products for a living, and you know which names feel premium, memorable, and ownable.
+  return `You are a world-class brand strategist who names venture-backed startups for a living (the caliber of Vetted, Handshake, Ramp, Found). You know which names feel like a $100M company versus a cheap AI feature.
 
-Your job: given a business idea space, propose distinctive brand names that a founder would be PROUD to own, and that are likely to still have an available domain.
+Your job: given a business space, propose brand names a founder would be PROUD to own, each with a sharp positioning tagline, that are likely to still have an available domain.
+
+WHO IS THE HERO: ${PERSPECTIVE_GUIDANCE[perspective]}
 
 ${styleText}
 
-Hard rules for names:
+What great names in this tier look like:
+- Real evocative words used confidently (Vetted, Found, Merit, Proof, Beacon, Roster, Stride).
+- Clever two-word compounds tied to the domain (RoleCall, FirstRound, NextRole, ProofPoint).
+- Coined words that sound like an established company, not a generator (Ramp, Brex, Lattice).
+
+Hard rules:
 - Letters only, lowercase-safe, no spaces, no hyphens, no numbers.
-- 5 to 18 characters. Longer, more distinctive names are far more likely to have a free domain than short obvious ones.
-- Easy to say out loud and spell after hearing it once.
-- Deliberately AVOID generic, picked-over names. If it sounds like every other AI startup, discard it.
-- No trademarks or famous brand names.
+- Easy to say and spell after hearing once.
+- AVOID names that collide with well-known companies in this space. If the space is jobs/recruiting, do NOT use Indeed, Monster, ZipRecruiter, Handshake, Greenhouse, Lever, Wellfound. Same idea for any space: never suggest an existing major brand.
+- Ruthlessly cut anything generic or that sounds like every other AI startup.
 
 For EACH suggestion return:
-- idea: one sentence describing the specific product/business (tie it to the space given).
+- idea: one sentence describing the specific product/business (tie it to the space).
 - name: the brand name.
-- why: one punchy sentence on WHY this name works from a branding standpoint (the strategist's rationale).
+- tagline: a short, punchy positioning line (3 to 6 words), like "Your next role. Found." or "Meet candidates worth meeting."
+- why: one sentence on WHY this name works from a branding standpoint.
 - audience: who it is for, in a few words.
 
-Return MANY varied suggestions. NEVER use em dashes anywhere; use commas or periods.
+Return MANY varied, high-quality suggestions. NEVER use em dashes anywhere; use commas or periods.
 Return ONLY valid JSON, no markdown fences, in this exact shape:
-{"suggestions":[{"idea":"...","name":"...","why":"...","audience":"..."}]}`
+{"suggestions":[{"idea":"...","name":"...","tagline":"...","why":"...","audience":"..."}]}`
 }
 
 interface RawSuggestion {
   idea?: string
   name?: string
+  tagline?: string
   why?: string
   audience?: string
 }
 
-function extractJson(text: string): { suggestions?: RawSuggestion[] } {
+function extractJsonSuggestions(text: string): { suggestions?: RawSuggestion[] } {
   const cleaned = text.replace(/```json/gi, '').replace(/```/g, '').trim()
   try {
     return JSON.parse(cleaned)
@@ -92,7 +111,13 @@ function getApiKey(): string {
 }
 
 /** One round: ask the model for a batch of named suggestions. */
-async function generateBatch(niche: string, styles: NameStyle[], batchSize: number, avoid: string[]): Promise<RawSuggestion[]> {
+async function generateBatch(
+  niche: string,
+  styles: NameStyle[],
+  perspective: Perspective,
+  batchSize: number,
+  avoid: string[]
+): Promise<RawSuggestion[]> {
   const google = createGoogleGenerativeAI({ apiKey: getApiKey() })
   const space = niche.trim() || 'diverse products a solo technical founder could build'
   const avoidText = avoid.length
@@ -100,17 +125,18 @@ async function generateBatch(niche: string, styles: NameStyle[], batchSize: numb
     : ''
   const { text } = await generateText({
     model: google('gemini-flash-latest'),
-    system: buildSystem(styles),
-    prompt: `Propose ${batchSize} distinct brand names for products in this space: ${space}.${avoidText}`,
+    system: buildSystem(styles, perspective),
+    prompt: `Propose ${batchSize} distinct, premium brand names for products in this space: ${space}.${avoidText}`,
     temperature: 0.9,
   })
-  const parsed = extractJson(text)
+  const parsed = extractJsonSuggestions(text)
   return Array.isArray(parsed.suggestions) ? parsed.suggestions : []
 }
 
 export interface FindOptions {
   niche: string
   styles: NameStyle[]
+  perspective?: Perspective
   target: number // how many AVAILABLE ideas to find
   maxRounds?: number
   onProgress?: (info: { checked: number; found: number; round: number }) => void
@@ -122,6 +148,7 @@ export interface FindOptions {
  */
 export async function findAvailableIdeas(opts: FindOptions): Promise<IdeaResult[]> {
   const { niche, styles, target } = opts
+  const perspective = opts.perspective ?? 'both'
   const maxRounds = opts.maxRounds ?? 6
   const batchSize = 12
 
@@ -130,7 +157,7 @@ export async function findAvailableIdeas(opts: FindOptions): Promise<IdeaResult[
   let checked = 0
 
   for (let round = 1; round <= maxRounds && results.length < target; round++) {
-    const batch = await generateBatch(niche, styles, batchSize, [...seenNames])
+    const batch = await generateBatch(niche, styles, perspective, batchSize, [...seenNames])
 
     // Normalize + de-dupe by name.
     const fresh = batch
@@ -138,6 +165,7 @@ export async function findAvailableIdeas(opts: FindOptions): Promise<IdeaResult[
       .map((s) => ({
         idea: (s.idea || '').trim(),
         name: (s.name || '').trim(),
+        tagline: (s.tagline || '').trim(),
         why: (s.why || '').trim(),
         audience: (s.audience || '').trim(),
       }))
@@ -163,7 +191,7 @@ export async function findAvailableIdeas(opts: FindOptions): Promise<IdeaResult[
         .map((d) => byDomain.get(d))
         .filter((r): r is DomainResult => !!r && r.status === 'available')
       if (available.length > 0) {
-        results.push({ idea: s.idea, name: s.name, why: s.why, audience: s.audience, available })
+        results.push({ idea: s.idea, name: s.name, tagline: s.tagline, why: s.why, audience: s.audience, available })
       }
     }
 
