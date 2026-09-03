@@ -14,6 +14,13 @@ const SESSION_COOKIE = 'quadropus_session'
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
+  // Lead ingestion is called cross-origin by FundyLaunch/FundyLogic and authenticates
+  // with its own bearer token (checked in the route), so it bypasses the session gate.
+  // Only the POST method is exempt; GET (listing leads) still requires a session.
+  if (pathname === '/api/ops/leads' && request.method === 'POST') {
+    return NextResponse.next()
+  }
+
   const hasSession = request.cookies.get(SESSION_COOKIE)?.value === '1'
   if (hasSession) return NextResponse.next()
 

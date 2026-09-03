@@ -60,9 +60,10 @@ export const PROJECTS: Project[] = [
     name: 'MarketMojo',
     area: 'personal',
     url: 'https://marketmojo.ai',
+    supabaseUrl: 'https://qpbhvbubudlohgkvlmiv.supabase.co',
     repo: 'coreyfmiller/prospecting',
     priority: 'revenue',
-    notes: 'Local business prospecting SaaS. MVP, needs marketing.',
+    notes: 'Local business prospecting SaaS. MVP, needs marketing. Supabase-backed. Note: FundyLaunch has a keepalive route pinging MarketMojo + Duelly Supabase to prevent auto-pause.',
   },
   {
     id: 'fundylaunch',
