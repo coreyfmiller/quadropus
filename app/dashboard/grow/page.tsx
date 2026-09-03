@@ -332,7 +332,7 @@ export default function GrowPage() {
           <Lightbulb className="size-[18px]" strokeWidth={1.5} />
         </div>
         <div>
-          <h1 className="text-xl font-semibold tracking-tight text-foreground">Idea Lab</h1>
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">Brand Lab</h1>
           <p className="text-[13px] font-light text-muted-foreground">
             Brand-strategist naming. Shows only ideas with an available .com or .ai.
           </p>

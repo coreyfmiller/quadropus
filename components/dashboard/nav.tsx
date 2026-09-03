@@ -23,7 +23,7 @@ import { cn } from '@/lib/utils'
 const navItems = [
   { label: 'Overview', href: '/dashboard', icon: LayoutGrid },
   { label: 'Build', href: '/dashboard/build', icon: Boxes },
-  { label: 'Idea Lab', href: '/dashboard/grow', icon: Lightbulb },
+  { label: 'Brand Lab', href: '/dashboard/grow', icon: Lightbulb },
   { label: 'Automate', href: '/dashboard/automate', icon: Workflow },
   { label: 'Operate', href: '/dashboard/operate', icon: Gauge },
   { divider: true },
