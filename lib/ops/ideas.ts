@@ -141,6 +141,7 @@ export interface FindOptions {
   perspective?: Perspective
   target: number // how many AVAILABLE ideas to find
   maxRounds?: number
+  batchSize?: number // names generated per round (smaller = lighter requests)
   onProgress?: (info: { checked: number; found: number; round: number }) => void
 }
 
@@ -151,15 +152,23 @@ export interface FindOptions {
 export async function findAvailableIdeas(opts: FindOptions): Promise<IdeaResult[]> {
   const { niche, styles, target } = opts
   const perspective = opts.perspective ?? 'both'
-  const maxRounds = opts.maxRounds ?? 6
-  const batchSize = 12
+  // Keep trying more rounds to hit the target (bounded by the route's time budget).
+  const maxRounds = opts.maxRounds ?? 12
+  const batchSize = opts.batchSize ?? 8 // smaller default = lighter, more Vercel-friendly requests
 
   const results: IdeaResult[] = []
   const seenNames = new Set<string>()
   let checked = 0
 
+  const t0 = Date.now()
+  const elapsed = () => `${((Date.now() - t0) / 1000).toFixed(1)}s`
+  console.log(`[ideas] START target=${target} maxRounds=${maxRounds} styles=[${styles.join(',')}] perspective=${perspective}`)
+
   for (let round = 1; round <= maxRounds && results.length < target; round++) {
+    const rt = Date.now()
+    const genStart = Date.now()
     const batch = await generateBatch(niche, styles, perspective, batchSize, [...seenNames])
+    const genMs = Date.now() - genStart
 
     // Normalize + de-dupe by name.
     const fresh = batch
@@ -178,13 +187,22 @@ export async function findAvailableIdeas(opts: FindOptions): Promise<IdeaResult[
         return true
       })
 
-    if (fresh.length === 0) continue
+    if (fresh.length === 0) {
+      console.log(`[ideas] round ${round}: gen ${genMs}ms -> 0 fresh names (all dupes), skipping`)
+      continue
+    }
 
-    // Check all candidate domains for this batch in one shot.
+    // Check all candidate domains for this batch (throttled for accuracy).
     const allDomains = fresh.flatMap((s) => candidatesFor(s.name))
+    const chkStart = Date.now()
     const domainResults = await checkDomains(allDomains)
+    const chkMs = Date.now() - chkStart
     checked += domainResults.length
     const byDomain = new Map(domainResults.map((r) => [r.domain, r]))
+
+    const availCount = domainResults.filter((r) => r.status === 'available').length
+    const unknownCount = domainResults.filter((r) => r.status === 'unknown').length
+    const foundBefore = results.length
 
     for (const s of fresh) {
       if (results.length >= target) break
@@ -205,8 +223,17 @@ export async function findAvailableIdeas(opts: FindOptions): Promise<IdeaResult[
       }
     }
 
+    console.log(
+      `[ideas] round ${round}: gen ${genMs}ms, ${fresh.length} names, ` +
+        `checked ${domainResults.length} domains in ${chkMs}ms ` +
+        `(avail ${availCount}, unknown ${unknownCount}), ` +
+        `found +${results.length - foundBefore} (total ${results.length}/${target}), ` +
+        `round ${Date.now() - rt}ms, elapsed ${elapsed()}`
+    )
+
     opts.onProgress?.({ checked, found: results.length, round })
   }
 
+  console.log(`[ideas] DONE ${results.length}/${target} in ${elapsed()}, ${checked} domains checked total`)
   return results.slice(0, target)
 }

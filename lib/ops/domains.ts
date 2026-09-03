@@ -25,7 +25,10 @@ export interface DomainResult {
   registerUrl: string | null
 }
 
-const TIMEOUT_MS = 7000
+const TIMEOUT_MS = 9000
+const MAX_RETRIES = 3 // retry transient failures so throttling never looks like "unavailable"
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 async function fetchWithTimeout(url: string, init?: RequestInit) {
   const controller = new AbortController()
@@ -50,45 +53,65 @@ function rdapEndpoint(domain: string, tld: string): string {
   return `https://rdap.org/domain/${domain}`
 }
 
-/** Authoritative check via RDAP: 404 = available, 200 = taken. */
+/**
+ * Authoritative check via RDAP: 404 = available, 200 = taken.
+ * Retries transient failures (429/5xx/network) with backoff, so throttling is NEVER
+ * mistaken for "unavailable". Returns 'unknown' only after all retries are exhausted.
+ */
 async function checkRdap(domain: string): Promise<DomainResult> {
   const tld = domain.split('.').pop() || ''
-  try {
-    const res = await fetchWithTimeout(rdapEndpoint(domain, tld), {
-      headers: { Accept: 'application/rdap+json', 'User-Agent': 'QuadropusIdeaLab/1.0' },
-    })
-    if (res.status === 404) {
-      return { domain, tld, status: 'available', confidence: 'confirmed', method: 'rdap', registerUrl: porkbunSearchUrl(domain) }
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const res = await fetchWithTimeout(rdapEndpoint(domain, tld), {
+        headers: { Accept: 'application/rdap+json', 'User-Agent': 'QuadropusIdeaLab/1.0' },
+      })
+      if (res.status === 404) {
+        return { domain, tld, status: 'available', confidence: 'confirmed', method: 'rdap', registerUrl: porkbunSearchUrl(domain) }
+      }
+      if (res.status === 200) {
+        return { domain, tld, status: 'taken', confidence: 'confirmed', method: 'rdap', registerUrl: null }
+      }
+      // 429/5xx = throttled/transient -> back off and retry.
+      if (res.status === 429 || res.status >= 500) {
+        await sleep(1200 * (attempt + 1))
+        continue
+      }
+      // Any other definitive status: unknown, don't loop forever.
+      return { domain, tld, status: 'unknown', confidence: 'likely', method: 'rdap', registerUrl: porkbunSearchUrl(domain) }
+    } catch {
+      await sleep(1200 * (attempt + 1)) // network/timeout -> back off and retry
     }
-    if (res.status === 200) {
-      return { domain, tld, status: 'taken', confidence: 'confirmed', method: 'rdap', registerUrl: null }
-    }
-    return { domain, tld, status: 'unknown', confidence: 'likely', method: 'rdap', registerUrl: porkbunSearchUrl(domain) }
-  } catch {
-    return { domain, tld, status: 'unknown', confidence: 'likely', method: 'rdap', registerUrl: porkbunSearchUrl(domain) }
   }
+  // Exhausted retries: honestly unknown (NOT treated as unavailable upstream).
+  return { domain, tld, status: 'unknown', confidence: 'likely', method: 'rdap', registerUrl: porkbunSearchUrl(domain) }
 }
 
-/** Best-effort .ai check via DNS: no A/NS records resolving suggests it may be available. */
+/**
+ * Best-effort .ai check via DNS (no NS records suggests it may be unregistered).
+ * Retries transient failures so throttling is not mistaken for a definitive answer.
+ */
 async function checkDns(domain: string): Promise<DomainResult> {
   const tld = domain.split('.').pop() || ''
-  try {
-    // Use Google's DNS-over-HTTPS to look for NS records (registered domains have NS).
-    const res = await fetchWithTimeout(
-      `https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=NS`
-    )
-    const data = await res.json()
-    // Status 3 (NXDOMAIN) => not registered. Answer with NS => registered.
-    if (data.Status === 3) {
-      return { domain, tld, status: 'available', confidence: 'likely', method: 'dns', registerUrl: porkbunSearchUrl(domain) }
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const res = await fetchWithTimeout(`https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=NS`)
+      if (res.status === 429 || res.status >= 500) {
+        await sleep(1200 * (attempt + 1))
+        continue
+      }
+      const data = await res.json()
+      if (data.Status === 3) {
+        return { domain, tld, status: 'available', confidence: 'likely', method: 'dns', registerUrl: porkbunSearchUrl(domain) }
+      }
+      if (Array.isArray(data.Answer) && data.Answer.length > 0) {
+        return { domain, tld, status: 'taken', confidence: 'likely', method: 'dns', registerUrl: null }
+      }
+      return { domain, tld, status: 'unknown', confidence: 'likely', method: 'dns', registerUrl: porkbunSearchUrl(domain) }
+    } catch {
+      await sleep(1200 * (attempt + 1))
     }
-    if (Array.isArray(data.Answer) && data.Answer.length > 0) {
-      return { domain, tld, status: 'taken', confidence: 'likely', method: 'dns', registerUrl: null }
-    }
-    return { domain, tld, status: 'unknown', confidence: 'likely', method: 'dns', registerUrl: porkbunSearchUrl(domain) }
-  } catch {
-    return { domain, tld, status: 'unknown', confidence: 'likely', method: 'dns', registerUrl: porkbunSearchUrl(domain) }
   }
+  return { domain, tld, status: 'unknown', confidence: 'likely', method: 'dns', registerUrl: porkbunSearchUrl(domain) }
 }
 
 export async function checkDomain(domain: string): Promise<DomainResult> {
@@ -99,9 +122,23 @@ export async function checkDomain(domain: string): Promise<DomainResult> {
   return checkRdap(clean)
 }
 
+/**
+ * Check many domains ACCURATELY. Prioritizes correctness over speed: runs with low
+ * concurrency and a small delay between waves so we never burst-hit RDAP/DNS and get
+ * throttled (throttling is what was making available names look unavailable).
+ */
 export async function checkDomains(domains: string[]): Promise<DomainResult[]> {
   const unique = Array.from(new Set(domains.map((d) => d.trim().toLowerCase()).filter(Boolean)))
-  return Promise.all(unique.map(checkDomain))
+  const CONCURRENCY = 4
+  const WAVE_DELAY_MS = 400
+  const out: DomainResult[] = []
+  for (let i = 0; i < unique.length; i += CONCURRENCY) {
+    const wave = unique.slice(i, i + CONCURRENCY)
+    const settled = await Promise.all(wave.map(checkDomain))
+    out.push(...settled)
+    if (i + CONCURRENCY < unique.length) await sleep(WAVE_DELAY_MS)
+  }
+  return out
 }
 
 /** Build .com and .ai candidates from a base brand name (strips spaces/punctuation). */
