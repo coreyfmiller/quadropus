@@ -180,20 +180,25 @@ export async function checkNames(names: string[]): Promise<IdeaResult[]> {
   const domainResults = await checkDomains(allDomains)
   const byDomain = new Map(domainResults.map((r) => [r.domain, r]))
 
-  return clean.map((name) => {
-    const available = candidatesFor(name)
-      .map((d) => byDomain.get(d))
-      .filter((r): r is DomainResult => !!r && r.status === 'available')
-    return {
+  // Only return names that actually have an available domain. Taken names are useless
+  // to the user, so drop them (same behavior as the generator).
+  return clean
+    .map((name) => {
+      const available = candidatesFor(name)
+        .map((d) => byDomain.get(d))
+        .filter((r): r is DomainResult => !!r && r.status === 'available')
+      return { name, available }
+    })
+    .filter((x) => x.available.length > 0)
+    .map((x) => ({
       idea: 'Your submitted name.',
-      name,
+      name: x.name,
       tagline: '',
       why: '',
       audience: '',
-      available,
-      trademark: checkTrademark(name),
-    }
-  })
+      available: x.available,
+      trademark: checkTrademark(x.name),
+    }))
 }
 
 export async function runOneRound(input: OneRoundInput): Promise<OneRoundOutput> {

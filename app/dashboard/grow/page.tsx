@@ -294,11 +294,12 @@ export default function GrowPage() {
         throw new Error(d?.error || `Failed (${res.status})`)
       }
       const out = await res.json()
-      const checked: IdeaResult[] = out.results || []
-      // Show all (including taken) so the user sees the verdict on their own names.
+      const checked: IdeaResult[] = out.results || [] // API returns ONLY names with an available domain
       setResults(checked)
-      // Only persist the ones that have an available domain.
-      rememberDiscovered(checked.filter((c) => c.available.length > 0))
+      rememberDiscovered(checked)
+      if (checked.length === 0) {
+        setError('None of those names have an available .com or .ai. Try different names.')
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to check names')
     } finally {
