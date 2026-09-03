@@ -47,6 +47,43 @@ const PERSPECTIVES: { id: Perspective; label: string; hint: string }[] = [
 
 const SHORTLIST_KEY = 'quadropus_idealab_shortlist'
 
+// Names Corey wants to keep on hand. Seeded into the shortlist on first load
+// (he can unstar/remove them anytime). Real availability confirmed 2026-09.
+const SEED_SHORTLIST: IdeaResult[] = [
+  {
+    name: 'TalentMark',
+    tagline: 'The mark of vetted talent.',
+    idea: 'AI-screened talent marketplace where every candidate carries a verified quality mark.',
+    why: 'Combines talent with a mark of trust and certification, signaling pre-vetted quality.',
+    audience: 'Employers and job seekers',
+    available: [
+      { domain: 'talentmark.ai', tld: 'ai', status: 'available', confidence: 'likely', registerUrl: 'https://porkbun.com/checkout/search?q=talentmark.ai' },
+    ],
+    trademark: {
+      flag: 'clear-signal',
+      reason: 'No obvious well-known-brand collision. Still verify against the official databases.',
+      usptoUrl: 'https://tmsearch.uspto.gov/search/search-information?query=TalentMark',
+      cipoUrl: 'https://ised-isde.canada.ca/cipo/trademark-search/srch?null&text=TalentMark',
+    },
+  },
+  {
+    name: 'HirePath',
+    tagline: 'A clear path to your next hire.',
+    idea: 'AI-guided hiring platform that routes candidates and employers down the fastest path to a fit.',
+    why: 'Pairs hiring with a sense of a guided, clear route, approachable for both sides.',
+    audience: 'Employers and job seekers',
+    available: [
+      { domain: 'hirepath.ai', tld: 'ai', status: 'available', confidence: 'likely', registerUrl: 'https://porkbun.com/checkout/search?q=hirepath.ai' },
+    ],
+    trademark: {
+      flag: 'clear-signal',
+      reason: 'No obvious well-known-brand collision. Still verify against the official databases.',
+      usptoUrl: 'https://tmsearch.uspto.gov/search/search-information?query=HirePath',
+      cipoUrl: 'https://ised-isde.canada.ca/cipo/trademark-search/srch?null&text=HirePath',
+    },
+  },
+]
+
 export default function GrowPage() {
   const [niche, setNiche] = useState('')
   const [styles, setStyles] = useState<NameStyle[]>([])
@@ -58,11 +95,15 @@ export default function GrowPage() {
   const [error, setError] = useState<string | null>(null)
 
   // Load saved shortlist once on mount; persist on change.
+  // On first ever load (nothing saved), seed with the names Corey wants to keep.
   useEffect(() => {
     try {
       const raw = localStorage.getItem(SHORTLIST_KEY)
-      if (raw) setShortlist(JSON.parse(raw))
-    } catch { /* ignore */ }
+      if (raw !== null) setShortlist(JSON.parse(raw))
+      else setShortlist(SEED_SHORTLIST)
+    } catch {
+      setShortlist(SEED_SHORTLIST)
+    }
   }, [])
   useEffect(() => {
     try {
