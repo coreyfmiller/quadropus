@@ -14,10 +14,24 @@ const SESSION_COOKIE = 'quadropus_session'
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Lead ingestion is called cross-origin by FundyLaunch/FundyLogic and authenticates
-  // with its own bearer token (checked in the route), so it bypasses the session gate.
-  // Only the POST method is exempt; GET (listing leads) still requires a session.
-  if (pathname === '/api/ops/leads' && request.method === 'POST') {
+  // These POST endpoints authenticate with their own bearer token (checked in the route),
+  // so they bypass the session gate: lead ingestion (cross-origin from FundyLaunch/FundyLogic)
+  // and the daily-brief cron (triggered by Vercel cron with CRON_SECRET). GET on these paths
+  // still requires a session.
+  if (
+    request.method === 'POST' &&
+    (pathname === '/api/ops/leads' || pathname === '/api/ops/daily-brief')
+  ) {
+    return NextResponse.next()
+  }
+
+  // Vercel cron hits the daily brief via GET with an Authorization bearer header.
+  // Let it through (the route verifies CRON_SECRET); dashboard GET still needs a session.
+  if (
+    pathname === '/api/ops/daily-brief' &&
+    request.method === 'GET' &&
+    request.headers.get('authorization')?.startsWith('Bearer ')
+  ) {
     return NextResponse.next()
   }
 

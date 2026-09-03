@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { HealthPanel } from '@/components/dashboard/health-panel'
 import { LeadsPanel } from '@/components/dashboard/leads-panel'
+import { BriefPanel } from '@/components/dashboard/brief-panel'
 
 // --- Types ---
 
@@ -342,8 +343,13 @@ export default function CommandCenterPage() {
         </div>
       </div>
 
+      {/* Daily brief (the headline) */}
+      <div className="mt-6">
+        <BriefPanel />
+      </div>
+
       {/* Live health + leads (real data) */}
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <HealthPanel />
         <LeadsPanel />
       </div>
