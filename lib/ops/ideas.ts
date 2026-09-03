@@ -45,7 +45,11 @@ function extractJson(text: string): { ideas?: Array<{ name?: string; pitch?: str
 }
 
 export async function generateIdeas(niche: string, count = 6): Promise<Idea[]> {
-  const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY
+  // Sanitize: env values sometimes arrive with stray whitespace/newlines or an
+  // accidentally duplicated value. Take the first non-empty line and trim it, so a
+  // malformed paste can't produce an invalid Authorization header.
+  const rawKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY || ''
+  const apiKey = rawKey.split(/\s+/).find((s) => s.trim().length > 0)?.trim() || ''
   if (!apiKey) {
     throw new Error('GOOGLE_GENERATIVE_AI_API_KEY not set')
   }

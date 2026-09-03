@@ -47,7 +47,10 @@ export async function generateBrief(): Promise<DailyBrief> {
     totalLeads: leads.length,
   }
 
-  const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY
+  // Sanitize the key (strip stray whitespace/newlines/duplicate paste) so a malformed
+  // env value can't crash the request with an invalid Authorization header.
+  const rawKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY || ''
+  const apiKey = rawKey.split(/\s+/).find((s) => s.trim().length > 0)?.trim() || ''
   let briefText: string
 
   if (!apiKey) {
