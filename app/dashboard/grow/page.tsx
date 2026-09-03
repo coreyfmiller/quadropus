@@ -180,6 +180,24 @@ export default function GrowPage() {
     (s) => !shortlist.some((x) => x.name.toLowerCase() === s.name.toLowerCase())
   )
 
+  // Flat, de-duped list of every available domain found (from discovered history + shortlist).
+  const availableDomains = (() => {
+    const map = new Map<string, { domain: string; confidence: string; registerUrl: string | null }>()
+    for (const idea of [...discovered, ...shortlist]) {
+      for (const d of idea.available) {
+        if (d.status === 'available') {
+          map.set(d.domain.toLowerCase(), { domain: d.domain, confidence: d.confidence, registerUrl: d.registerUrl })
+        }
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => a.domain.localeCompare(b.domain))
+  })()
+
+  const copyAllDomains = () => {
+    const text = availableDomains.map((d) => d.domain).join('\n')
+    navigator.clipboard?.writeText(text).catch(() => {})
+  }
+
   const toggleStyle = (s: NameStyle) => {
     setStyles((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]))
   }
@@ -394,6 +412,45 @@ export default function GrowPage() {
             ))}
           </div>
         </>
+      )}
+
+      {/* Collected available domains (flat list, copyable) */}
+      {availableDomains.length > 0 && (
+        <div className="mt-10 rounded-xl border border-emerald-500/25 bg-emerald-500/[0.04] p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-foreground">
+                Available domains collected ({availableDomains.length})
+              </h2>
+              <p className="text-[11px] text-muted-foreground">
+                Every available .com / .ai found so far, in one list. Confirm .ai at the registrar before buying.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={copyAllDomains}
+              className="shrink-0 rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+            >
+              Copy all
+            </button>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {availableDomains.map((d) => (
+              <a
+                key={d.domain}
+                href={d.registerUrl || `https://porkbun.com/checkout/search?q=${encodeURIComponent(d.domain)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={d.confidence === 'likely' ? 'Likely available (verify at registrar)' : 'Available'}
+                className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-background/40 px-3 py-1 text-xs text-foreground transition-colors hover:border-emerald-500/60"
+              >
+                <Check className="size-3 text-emerald-400" />
+                {d.domain}
+                {d.confidence === 'likely' && <span className="text-[10px] text-muted-foreground">~</span>}
+              </a>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* Discovered history (every available name ever found, persisted) */}
