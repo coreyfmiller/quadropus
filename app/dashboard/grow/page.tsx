@@ -159,9 +159,12 @@ export default function GrowPage() {
   )
 
   const saveIdea = (idea: IdeaResult) => {
-    setShortlist((prev) =>
-      prev.some((s) => s.name.toLowerCase() === idea.name.toLowerCase()) ? prev : [...prev, idea]
-    )
+    const key = idea.name.toLowerCase()
+    // Move it up into the shortlist...
+    setShortlist((prev) => (prev.some((s) => s.name.toLowerCase() === key) ? prev : [...prev, idea]))
+    // ...and remove it from the results + discovered lists below (claimed, clear it from the pile).
+    setResults((prev) => prev.filter((r) => r.name.toLowerCase() !== key))
+    setDiscovered((prev) => prev.filter((r) => r.name.toLowerCase() !== key))
   }
 
   const removeIdea = (name: string) => {
@@ -273,6 +276,7 @@ export default function GrowPage() {
   const [pasteResult, setPasteResult] = useState<{ available: number; checked: number } | null>(null)
 
   const checkPasted = async () => {
+    // Parse ALL pasted names (no silent cap). De-dupe, strip URLs/TLDs/punctuation.
     const names = Array.from(
       new Set(
         pasteInput
@@ -280,28 +284,38 @@ export default function GrowPage() {
           .map((s) => s.trim().replace(/^https?:\/\//, '').replace(/\.(com|ai|net|io|co)$/i, '').replace(/[^a-zA-Z0-9]/g, ''))
           .filter(Boolean)
       )
-    ).slice(0, 25)
+    )
     if (names.length === 0) return
     setCheckingPaste(true)
     setError(null)
     setPasteResult(null)
-    const submittedCount = names.length
+    setResults([])
+
+    const CHUNK = 15 // check in chunks so a big paste all gets checked without timing out
+    const collected: IdeaResult[] = []
     try {
-      const res = await fetch('/api/ops/check-names', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ names }),
-      })
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}))
-        throw new Error(d?.error || `Failed (${res.status})`)
+      for (let i = 0; i < names.length; i += CHUNK) {
+        const chunk = names.slice(i, i + CHUNK)
+        const res = await fetch('/api/ops/check-names', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ names: chunk }),
+        })
+        if (!res.ok) {
+          const d = await res.json().catch(() => ({}))
+          throw new Error(d?.error || `Failed (${res.status})`)
+        }
+        const out = await res.json()
+        const found: IdeaResult[] = out.results || [] // only names with an available domain
+        for (const f of found) {
+          if (!collected.some((c) => c.name.toLowerCase() === f.name.toLowerCase())) collected.push(f)
+        }
+        setResults([...collected])
+        rememberDiscovered(found)
+        // live progress: how many of the full list checked so far, how many available
+        setPasteResult({ available: collected.length, checked: Math.min(i + CHUNK, names.length) })
       }
-      const out = await res.json()
-      const checked: IdeaResult[] = out.results || [] // API returns ONLY names with an available domain
-      setResults(checked)
-      rememberDiscovered(checked)
-      setPasteResult({ available: checked.length, checked: submittedCount })
-      if (checked.length === 0) {
+      if (collected.length === 0) {
         setError('None of those names have an available .com or .ai. Try different names.')
       }
     } catch (e) {
@@ -451,6 +465,11 @@ export default function GrowPage() {
             {checkingPaste ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
             {checkingPaste ? 'Checking...' : 'Check These Names'}
           </button>
+          {checkingPaste && pasteResult && (
+            <span className="text-sm text-muted-foreground">
+              checked {pasteResult.checked}, found {pasteResult.available} available...
+            </span>
+          )}
           {!checkingPaste && pasteResult && (
             <span className={`text-sm font-medium ${pasteResult.available > 0 ? 'text-emerald-400' : 'text-muted-foreground'}`}>
               {pasteResult.available > 0
