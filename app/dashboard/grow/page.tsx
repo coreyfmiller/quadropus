@@ -270,6 +270,7 @@ export default function GrowPage() {
   // availability + trademark checks and show them as result cards.
   const [pasteInput, setPasteInput] = useState('')
   const [checkingPaste, setCheckingPaste] = useState(false)
+  const [pasteResult, setPasteResult] = useState<{ available: number; checked: number } | null>(null)
 
   const checkPasted = async () => {
     const names = Array.from(
@@ -283,6 +284,8 @@ export default function GrowPage() {
     if (names.length === 0) return
     setCheckingPaste(true)
     setError(null)
+    setPasteResult(null)
+    const submittedCount = names.length
     try {
       const res = await fetch('/api/ops/check-names', {
         method: 'POST',
@@ -297,6 +300,7 @@ export default function GrowPage() {
       const checked: IdeaResult[] = out.results || [] // API returns ONLY names with an available domain
       setResults(checked)
       rememberDiscovered(checked)
+      setPasteResult({ available: checked.length, checked: submittedCount })
       if (checked.length === 0) {
         setError('None of those names have an available .com or .ai. Try different names.')
       }
@@ -437,15 +441,24 @@ export default function GrowPage() {
           placeholder={'echelon\nhirepath.ai\nTalentMark, Rolevo'}
           className="mt-2 w-full resize-y rounded-lg border border-border bg-background/40 px-3 py-2 text-sm text-foreground outline-none focus:border-foreground/30"
         />
-        <button
-          type="button"
-          onClick={checkPasted}
-          disabled={checkingPaste || !pasteInput.trim()}
-          className="mt-3 inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-background transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {checkingPaste ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
-          {checkingPaste ? 'Checking...' : 'Check These Names'}
-        </button>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={checkPasted}
+            disabled={checkingPaste || !pasteInput.trim()}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-background transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {checkingPaste ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+            {checkingPaste ? 'Checking...' : 'Check These Names'}
+          </button>
+          {!checkingPaste && pasteResult && (
+            <span className={`text-sm font-medium ${pasteResult.available > 0 ? 'text-emerald-400' : 'text-muted-foreground'}`}>
+              {pasteResult.available > 0
+                ? `${pasteResult.available} available, scroll down to see`
+                : 'None available'}
+            </span>
+          )}
+        </div>
       </div>
 
       {error && (
