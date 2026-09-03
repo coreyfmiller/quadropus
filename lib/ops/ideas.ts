@@ -15,22 +15,31 @@ export interface Idea {
   domains: string[] // candidate domains (.com, .ai)
 }
 
-const SYSTEM = `You generate brandable business and product ideas for a solo founder.
+const SYSTEM = `You generate business/product ideas for a solo founder AND, for each, a set of brand names chosen to MAXIMIZE the chance the .com or .ai is actually unregistered.
 
-For each idea give:
-- name: a SHORT, brandable, inventable name (one or two words, easy to spell, no generic dictionary phrases). It should work as a domain. Prefer coined/made-up words or clever compounds.
+The single most important goal: names whose domains are likely STILL AVAILABLE. Short, obvious, single-real-word or common two-syllable coined names (like "Qualixa", "Rolevo", "Voxmatch") are almost always already taken. Avoid that whole style. Deliberately go for names that are less picked-over.
+
+Tactics to find available names (use a mix across your suggestions):
+- Invent genuinely novel words, not the tired "-ify / -ly / -ora / -ixa / vox- / -match" startup patterns.
+- Real but unexpected words from nature, mythology, geography, or other languages, applied to the idea.
+- Two-word real compounds that read naturally (e.g. "harborthread", "openkiln") rather than mashed nonsense.
+- Slightly longer names (10 to 18 characters) are far more likely to be free than short 5 to 7 letter ones.
+- Add a purposeful, non-generic word (not "app/hq/get/try") when it helps, e.g. a domain noun tied to the idea.
+
+For each IDEA give:
+- name: the primary brand name (letters only, no spaces, no hyphens, easy to say and spell).
 - pitch: one punchy sentence on what it does and the value.
 - audience: who it is for, in a few words.
+- names: an array of 3 to 4 DISTINCT candidate brand names for this same idea (include the primary "name" as the first entry), each following the availability tactics above. These give multiple shots at an open domain.
 
 Rules:
-- Names must be domain-friendly: letters only, no spaces, no hyphens, ideally under 14 characters.
-- Aim for names likely to have an available .com or .ai.
-- Vary the ideas. No repeats, no near-duplicates.
+- Every name: letters only, lowercase-safe, no spaces, no hyphens, no numbers.
+- Vary ideas widely. No repeats or near-duplicates.
 - NEVER use em dashes anywhere. Use commas or periods.
 - Return ONLY valid JSON, no markdown fences, in this exact shape:
-{"ideas":[{"name":"...","pitch":"...","audience":"..."}]}`
+{"ideas":[{"name":"...","pitch":"...","audience":"...","names":["...","...","..."]}]}`
 
-function extractJson(text: string): { ideas?: Array<{ name?: string; pitch?: string; audience?: string }> } {
+function extractJson(text: string): { ideas?: Array<{ name?: string; pitch?: string; audience?: string; names?: string[] }> } {
   // Strip accidental code fences, then parse the first {...} block.
   const cleaned = text.replace(/```json/gi, '').replace(/```/g, '').trim()
   try {
@@ -71,10 +80,19 @@ export async function generateIdeas(niche: string, count = 6): Promise<Idea[]> {
   return raw
     .filter((i) => i && typeof i.name === 'string' && i.name.trim())
     .slice(0, count)
-    .map((i) => ({
-      name: (i.name || '').trim(),
-      pitch: (i.pitch || '').trim(),
-      audience: (i.audience || '').trim(),
-      domains: candidatesFor(i.name || ''),
-    }))
+    .map((i) => {
+      // Collect the primary name plus the alternative candidates, de-duped.
+      const nameList = [i.name || '', ...(Array.isArray(i.names) ? i.names : [])]
+        .map((n) => (typeof n === 'string' ? n.trim() : ''))
+        .filter(Boolean)
+      const uniqueNames = Array.from(new Set(nameList.map((n) => n.toLowerCase())))
+      // Build .com + .ai candidates for every distinct name (cap to keep checks reasonable).
+      const domains = uniqueNames.slice(0, 4).flatMap((n) => candidatesFor(n))
+      return {
+        name: (i.name || '').trim(),
+        pitch: (i.pitch || '').trim(),
+        audience: (i.audience || '').trim(),
+        domains,
+      }
+    })
 }

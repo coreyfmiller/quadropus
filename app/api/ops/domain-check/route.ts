@@ -16,7 +16,7 @@ export async function POST(request: Request) {
   if (domains.length === 0) {
     return NextResponse.json({ error: 'No domains provided' }, { status: 400 })
   }
-  if (domains.length > 40) domains = domains.slice(0, 40)
+  if (domains.length > 80) domains = domains.slice(0, 80)
 
   try {
     const results = await checkDomains(domains)
