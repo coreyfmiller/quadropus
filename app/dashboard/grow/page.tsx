@@ -1,7 +1,7 @@
 ﻿'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Lightbulb, Sparkles, Loader2, Check, ExternalLink, ShieldAlert, Scale, Info, Star } from 'lucide-react'
+import { Lightbulb, Sparkles, Loader2, Check, ExternalLink, ShieldAlert, Scale, Info, Star, Save, FolderOpen, Plus } from 'lucide-react'
 
 type NameStyle = 'evocative' | 'coined' | 'compound' | 'playful' | 'literal'
 type Perspective = 'customer' | 'buyer' | 'both'
@@ -48,6 +48,16 @@ const PERSPECTIVES: { id: Perspective; label: string; hint: string }[] = [
 const SHORTLIST_KEY = 'quadropus_idealab_shortlist'
 const DISCOVERED_KEY = 'quadropus_idealab_discovered'
 const CHECKED_KEY = 'quadropus_idealab_checked' // domain -> { status, confidence, at } cache of everything checked
+const WORKSPACES_KEY = 'quadropus_brandlab_workspaces' // saved named workspaces
+
+interface Workspace {
+  id: string
+  name: string
+  savedAt: string
+  niche: string
+  shortlist: IdeaResult[]
+  discovered: IdeaResult[]
+}
 
 // Names Corey wants to keep on hand. Seeded into the shortlist on first load
 // (he can unstar/remove them anytime). Real availability confirmed 2026-09.
@@ -129,6 +139,67 @@ export default function GrowPage() {
       localStorage.setItem(DISCOVERED_KEY, JSON.stringify(discovered))
     } catch { /* ignore */ }
   }, [discovered])
+
+  // Load saved workspaces once.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(WORKSPACES_KEY)
+      if (raw) setWorkspaces(JSON.parse(raw))
+    } catch { /* ignore */ }
+  }, [])
+  const persistWorkspaces = (list: Workspace[]) => {
+    setWorkspaces(list)
+    try { localStorage.setItem(WORKSPACES_KEY, JSON.stringify(list)) } catch { /* ignore */ }
+  }
+
+  // Save the current working state (shortlist + discovered + niche) as a named workspace.
+  const saveWorkspace = () => {
+    const name = (prompt('Save this workspace as:', currentWorkspace || niche || 'Untitled') || '').trim()
+    if (!name) return
+    const existing = workspaces.find((w) => w.name.toLowerCase() === name.toLowerCase())
+    const ws: Workspace = {
+      id: existing?.id || `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      name,
+      savedAt: new Date().toISOString(),
+      niche,
+      shortlist,
+      discovered,
+    }
+    const next = existing
+      ? workspaces.map((w) => (w.id === ws.id ? ws : w))
+      : [...workspaces, ws]
+    persistWorkspaces(next)
+    setCurrentWorkspace(name)
+  }
+
+  // Load a saved workspace into the working area.
+  const loadWorkspace = (id: string) => {
+    const ws = workspaces.find((w) => w.id === id)
+    if (!ws) return
+    setShortlist(ws.shortlist || [])
+    setDiscovered(ws.discovered || [])
+    setNiche(ws.niche || '')
+    setResults([])
+    setPasteResult(null)
+    setError(null)
+    setCurrentWorkspace(ws.name)
+  }
+
+  // Start a fresh workspace (clears the working area; saved workspaces are untouched).
+  const newWorkspace = () => {
+    if (
+      (shortlist.length > 0 || discovered.length > 0) &&
+      !confirm('Start a new workspace? This clears the current shortlist and discovered names (saved workspaces are kept).')
+    ) return
+    setShortlist([])
+    setDiscovered([])
+    setResults([])
+    setNiche('')
+    setPasteInput('')
+    setPasteResult(null)
+    setError(null)
+    setCurrentWorkspace('')
+  }
 
   // Merge freshly found results into the discovered history, de-duped by name (newest first).
   const rememberDiscovered = useCallback((found: IdeaResult[]) => {
@@ -276,6 +347,8 @@ export default function GrowPage() {
   const [pasteResult, setPasteResult] = useState<{ available: number; checked: number } | null>(null)
   const [mode, setMode] = useState<'generate' | 'check'>('generate')
   const [showHow, setShowHow] = useState(false)
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([])
+  const [currentWorkspace, setCurrentWorkspace] = useState<string>('')
 
   const checkPasted = async () => {
     // Parse ALL pasted names (no silent cap). De-dupe, strip URLs/TLDs/punctuation.
@@ -351,6 +424,43 @@ export default function GrowPage() {
         </button>
       </div>
 
+      {/* Workspace bar */}
+      <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg border border-border/70 bg-secondary/20 px-3 py-2">
+        <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Workspace</span>
+        <span className="text-sm font-medium text-foreground">{currentWorkspace || 'Unsaved'}</span>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          {workspaces.length > 0 && (
+            <div className="inline-flex items-center gap-1.5">
+              <FolderOpen className="size-3.5 text-muted-foreground" />
+              <select
+                value=""
+                onChange={(e) => e.target.value && loadWorkspace(e.target.value)}
+                className="rounded-md border border-border bg-background/40 px-2 py-1 text-xs text-foreground outline-none"
+              >
+                <option value="">Load saved...</option>
+                {workspaces.map((w) => (
+                  <option key={w.id} value={w.id}>{w.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={saveWorkspace}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+          >
+            <Save className="size-3.5" /> Save
+          </button>
+          <button
+            type="button"
+            onClick={newWorkspace}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+          >
+            <Plus className="size-3.5" /> New
+          </button>
+        </div>
+      </div>
+
       {/* Collapsible "how it works / limitations" */}
       {showHow && (
         <div className="mt-3 rounded-lg border border-border/70 bg-secondary/30 p-3.5 text-[12px] leading-relaxed text-muted-foreground">
@@ -402,50 +512,6 @@ export default function GrowPage() {
               placeholder="Describe the space (e.g. AI job bank that screens and interviews candidates)"
               className="w-full rounded-lg border border-border bg-background/40 px-3 py-2.5 text-sm text-foreground outline-none focus:border-foreground/30"
             />
-
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="w-24 shrink-0 text-[11px] uppercase tracking-wide text-muted-foreground">Style</span>
-              {STYLES.map((s) => {
-                const active = styles.includes(s.id)
-                return (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => toggleStyle(s.id)}
-                    title={s.hint}
-                    className={`rounded-full border px-3 py-1 text-xs transition-colors ${
-                      active
-                        ? 'border-brand bg-brand/15 font-medium text-foreground'
-                        : 'border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground'
-                    }`}
-                  >
-                    {s.label}
-                  </button>
-                )
-              })}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="w-24 shrink-0 text-[11px] uppercase tracking-wide text-muted-foreground">Hero</span>
-              {PERSPECTIVES.map((p) => {
-                const active = perspective === p.id
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => setPerspective(p.id)}
-                    title={p.hint}
-                    className={`rounded-full border px-3 py-1 text-xs transition-colors ${
-                      active
-                        ? 'border-brand bg-brand/15 font-medium text-foreground'
-                        : 'border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground'
-                    }`}
-                  >
-                    {p.label}
-                  </button>
-                )
-              })}
-            </div>
 
             <div className="flex items-center gap-2">
               <button
