@@ -274,6 +274,8 @@ export default function GrowPage() {
   const [pasteInput, setPasteInput] = useState('')
   const [checkingPaste, setCheckingPaste] = useState(false)
   const [pasteResult, setPasteResult] = useState<{ available: number; checked: number } | null>(null)
+  const [mode, setMode] = useState<'generate' | 'check'>('generate')
+  const [showHow, setShowHow] = useState(false)
 
   const checkPasted = async () => {
     // Parse ALL pasted names (no silent cap). De-dupe, strip URLs/TLDs/punctuation.
@@ -326,171 +328,191 @@ export default function GrowPage() {
   }
 
   return (
-    <div className="p-6 lg:p-8">
-      <div className="flex items-center gap-3">
-        <div className="flex size-10 items-center justify-center rounded-xl border border-border bg-secondary/60 text-brand">
-          <Lightbulb className="size-[18px]" strokeWidth={1.5} />
+    <div className="mx-auto max-w-5xl p-6 lg:p-8">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="flex size-10 items-center justify-center rounded-xl border border-border bg-secondary/60 text-brand">
+            <Lightbulb className="size-[18px]" strokeWidth={1.5} />
+          </div>
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight text-foreground">Brand Lab</h1>
+            <p className="text-[13px] font-light text-muted-foreground">
+              Brand-strategist naming with live .com / .ai availability.
+            </p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight text-foreground">Brand Lab</h1>
-          <p className="text-[13px] font-light text-muted-foreground">
-            Brand-strategist naming. Shows only ideas with an available .com or .ai.
-          </p>
-        </div>
+        <button
+          type="button"
+          onClick={() => setShowHow((v) => !v)}
+          className="mt-1 inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[12px] text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+        >
+          <Info className="size-3.5" /> How it works
+        </button>
       </div>
 
-      {/* What gets checked (and what does not) */}
-      <div className="mt-5 flex items-start gap-2.5 rounded-lg border border-border/70 bg-secondary/30 p-3.5">
-        <Info className="mt-0.5 size-4 shrink-0 text-brand" strokeWidth={1.5} />
-        <div className="text-[12px] leading-relaxed text-muted-foreground">
-          <span className="font-medium text-foreground">What we check for each name:</span>{' '}
-          domain availability (<span className="text-foreground">.com is confirmed</span> against the
-          registry; <span className="text-foreground">.ai is a likely signal</span> from DNS), plus a{' '}
-          <span className="text-foreground">preliminary trademark flag</span> against well-known brands.
+      {/* Collapsible "how it works / limitations" */}
+      {showHow && (
+        <div className="mt-3 rounded-lg border border-border/70 bg-secondary/30 p-3.5 text-[12px] leading-relaxed text-muted-foreground">
+          <span className="font-medium text-foreground">What we check:</span> domain availability
+          (<span className="text-foreground">.com confirmed</span> via registry;{' '}
+          <span className="text-foreground">.ai a likely signal</span> from DNS) plus a{' '}
+          <span className="text-foreground">preliminary trademark flag</span>.
           <br />
-          <span className="font-medium text-foreground">What this is NOT:</span> legal clearance. A free
-          domain can still infringe a trademark. Before you register or build on a name, run the linked{' '}
-          <span className="text-foreground">USPTO</span> (US) and <span className="text-foreground">CIPO</span>{' '}
-          (Canada) searches, and check social handles. For anything real, confirm with a lawyer.
+          <span className="font-medium text-foreground">Not legal clearance.</span> A free domain can still
+          infringe. Run the linked USPTO (US) and CIPO (Canada) searches and check social handles before
+          committing. For anything real, confirm with a lawyer.
           {checkedCount > 0 && (
-            <>
-              <br />
-              <span className="text-muted-foreground/70">{checkedCount} domains recorded in this device&apos;s checked history.</span>
-            </>
+            <span className="mt-1 block text-muted-foreground/70">
+              {checkedCount} domains recorded in this device&apos;s checked history.
+            </span>
           )}
         </div>
-      </div>
+      )}
 
-      {/* Controls */}
-      <form onSubmit={generate} className="mt-6 space-y-4">
-        <input
-          value={niche}
-          onChange={(e) => setNiche(e.target.value)}
-          placeholder="Describe the space (e.g. AI job bank that screens and interviews candidates)"
-          className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2.5 text-sm text-foreground outline-none focus:border-foreground/30"
-        />
-
-        {/* Style chips */}
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Naming style:</span>
-          {STYLES.map((s) => {
-            const active = styles.includes(s.id)
-            return (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => toggleStyle(s.id)}
-                title={s.hint}
-                className={`rounded-full border px-3 py-1 text-xs transition-colors ${
-                  active
-                    ? 'border-brand bg-brand/15 font-medium text-foreground'
-                    : 'border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground'
-                }`}
-              >
-                {s.label}
-              </button>
-            )
-          })}
-          <span className="text-[11px] text-muted-foreground/60">
-            {styles.length === 0 ? '(mix of all)' : ''}
-          </span>
-        </div>
-
-        {/* Perspective / who is the hero */}
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Who is the hero:</span>
-          {PERSPECTIVES.map((p) => {
-            const active = perspective === p.id
-            return (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => setPerspective(p.id)}
-                title={p.hint}
-                className={`rounded-full border px-3 py-1 text-xs transition-colors ${
-                  active
-                    ? 'border-brand bg-brand/15 font-medium text-foreground'
-                    : 'border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground'
-                }`}
-              >
-                {p.label}
-              </button>
-            )
-          })}
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            type="submit"
-            disabled={running}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-50"
-          >
-            {running ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
-            {running ? 'Finding available names...' : 'Find 20 Available Names'}
-          </button>
-          {running && (
-            <button
-              type="button"
-              onClick={stopGenerating}
-              className="rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
-            >
-              Stop
-            </button>
-          )}
-        </div>
-      </form>
-
-      {/* Manual check: paste your own names/domains */}
-      <div className="mt-4 rounded-lg border border-border/70 bg-secondary/30 p-4">
-        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-          Or check your own names
-        </p>
-        <p className="mt-0.5 text-[12px] text-muted-foreground/80">
-          Paste names or domains (one per line or comma-separated). We check .com + .ai and trademark for each.
-        </p>
-        <textarea
-          value={pasteInput}
-          onChange={(e) => setPasteInput(e.target.value)}
-          rows={3}
-          placeholder={'echelon\nhirepath.ai\nTalentMark, Rolevo'}
-          className="mt-2 w-full resize-y rounded-lg border border-border bg-background/40 px-3 py-2 text-sm text-foreground outline-none focus:border-foreground/30"
-        />
-        <div className="mt-3 flex flex-wrap items-center gap-3">
+      {/* Input panel with mode tabs */}
+      <div className="mt-6 rounded-xl border border-border bg-secondary/30 p-4">
+        {/* Segmented control */}
+        <div className="inline-flex rounded-lg border border-border bg-background/40 p-0.5">
           <button
             type="button"
-            onClick={checkPasted}
-            disabled={checkingPaste || !pasteInput.trim()}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-background transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+            onClick={() => setMode('generate')}
+            className={`rounded-md px-3.5 py-1.5 text-xs font-medium transition-colors ${
+              mode === 'generate' ? 'bg-brand text-background' : 'text-muted-foreground hover:text-foreground'
+            }`}
           >
-            {checkingPaste ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
-            {checkingPaste ? 'Checking...' : 'Check These Names'}
+            Generate names
           </button>
-          {checkingPaste && pasteResult && (
-            <span className="text-sm text-muted-foreground">
-              checked {pasteResult.checked}, found {pasteResult.available} available...
-            </span>
-          )}
-          {!checkingPaste && pasteResult && (
-            <span className={`text-sm font-medium ${pasteResult.available > 0 ? 'text-emerald-400' : 'text-muted-foreground'}`}>
-              {pasteResult.available > 0
-                ? `${pasteResult.available} available, scroll down to see`
-                : 'None available'}
-            </span>
-          )}
+          <button
+            type="button"
+            onClick={() => setMode('check')}
+            className={`rounded-md px-3.5 py-1.5 text-xs font-medium transition-colors ${
+              mode === 'check' ? 'bg-brand text-background' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Check my own
+          </button>
         </div>
+
+        {mode === 'generate' ? (
+          <form onSubmit={generate} className="mt-4 space-y-4">
+            <input
+              value={niche}
+              onChange={(e) => setNiche(e.target.value)}
+              placeholder="Describe the space (e.g. AI job bank that screens and interviews candidates)"
+              className="w-full rounded-lg border border-border bg-background/40 px-3 py-2.5 text-sm text-foreground outline-none focus:border-foreground/30"
+            />
+
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="w-24 shrink-0 text-[11px] uppercase tracking-wide text-muted-foreground">Style</span>
+              {STYLES.map((s) => {
+                const active = styles.includes(s.id)
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => toggleStyle(s.id)}
+                    title={s.hint}
+                    className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                      active
+                        ? 'border-brand bg-brand/15 font-medium text-foreground'
+                        : 'border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                )
+              })}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="w-24 shrink-0 text-[11px] uppercase tracking-wide text-muted-foreground">Hero</span>
+              {PERSPECTIVES.map((p) => {
+                const active = perspective === p.id
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setPerspective(p.id)}
+                    title={p.hint}
+                    className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                      active
+                        ? 'border-brand bg-brand/15 font-medium text-foreground'
+                        : 'border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                )
+              })}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="submit"
+                disabled={running}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-50"
+              >
+                {running ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+                {running ? 'Finding available names...' : 'Find 20 Available Names'}
+              </button>
+              {running && (
+                <button
+                  type="button"
+                  onClick={stopGenerating}
+                  className="rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+                >
+                  Stop
+                </button>
+              )}
+              {running && progress && (
+                <span className="text-[12px] text-muted-foreground">
+                  checked {progress.checked}, found {progress.found} available...
+                </span>
+              )}
+            </div>
+          </form>
+        ) : (
+          <div className="mt-4 space-y-3">
+            <p className="text-[12px] text-muted-foreground/80">
+              Paste names or domains (one per line or comma-separated). We check .com + .ai and trademark for each, and show only the available ones.
+            </p>
+            <textarea
+              value={pasteInput}
+              onChange={(e) => setPasteInput(e.target.value)}
+              rows={4}
+              placeholder={'echelon\nhirepath.ai\nTalentMark, Rolevo'}
+              className="w-full resize-y rounded-lg border border-border bg-background/40 px-3 py-2 text-sm text-foreground outline-none focus:border-foreground/30"
+            />
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={checkPasted}
+                disabled={checkingPaste || !pasteInput.trim()}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-background transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {checkingPaste ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+                {checkingPaste ? 'Checking...' : 'Check These Names'}
+              </button>
+              {checkingPaste && pasteResult && (
+                <span className="text-sm text-muted-foreground">
+                  checked {pasteResult.checked}, found {pasteResult.available} available...
+                </span>
+              )}
+              {!checkingPaste && pasteResult && (
+                <span className={`text-sm font-medium ${pasteResult.available > 0 ? 'text-emerald-400' : 'text-muted-foreground'}`}>
+                  {pasteResult.available > 0 ? `${pasteResult.available} available, scroll down` : 'None available'}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {error && (
         <div className="mt-4 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-400">
           {error}
         </div>
-      )}
-
-      {running && progress && (
-        <p className="mt-4 inline-flex items-center gap-2 text-[12px] text-muted-foreground">
-          <Loader2 className="size-3.5 animate-spin" />
-          Checked {progress.checked} domains, found {progress.found} available so far...
-        </p>
       )}
 
       {/* Shortlist (kept names, persists across searches) */}
@@ -529,18 +551,18 @@ export default function GrowPage() {
         </div>
       )}
 
-      {/* Results (latest search) */}
+      {/* Results (latest search/check) */}
       {results.length > 0 && (
-        <>
-          <p className="mt-6 text-sm text-muted-foreground">
-            {results.length} ideas with an available domain
-          </p>
+        <div className="mt-8 border-t border-border/60 pt-6">
+          <h2 className="text-sm font-semibold text-foreground">
+            Results <span className="font-normal text-muted-foreground">({results.length} available)</span>
+          </h2>
           <div className="mt-3 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {results.map((r) => (
               <IdeaCard key={r.name} r={r} saved={isSaved(r.name)} onSave={saveIdea} onRemove={removeIdea} />
             ))}
           </div>
-        </>
+        </div>
       )}
 
       {/* Collected available domains (flat list, copyable) */}
