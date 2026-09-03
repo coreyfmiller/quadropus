@@ -145,6 +145,104 @@ export interface FindOptions {
   onProgress?: (info: { checked: number; found: number; round: number }) => void
 }
 
+export interface OneRoundInput {
+  niche: string
+  styles: NameStyle[]
+  perspective?: Perspective
+  batchSize?: number
+  avoid?: string[] // names already tried in previous rounds, so we don't repeat
+}
+
+export interface OneRoundOutput {
+  found: IdeaResult[] // available ideas discovered this round
+  tried: string[] // all names generated this round (add to caller's avoid list)
+  checkedCount: number
+}
+
+/**
+ * ONE quick generate+check pass. Fast enough to finish well under any serverless
+ * timeout, so the frontend can call this repeatedly and accumulate results. This is
+ * the building block that lets us beat Vercel's function time limit: many small calls
+ * instead of one long one.
+ */
+/**
+ * Check a user-supplied list of names (from the paste box). Runs the SAME availability +
+ * trademark checks, and returns ALL of them (including taken) with their available domains,
+ * so the user sees the verdict on their own ideas. No AI generation involved.
+ */
+export async function checkNames(names: string[]): Promise<IdeaResult[]> {
+  const clean = Array.from(
+    new Set(names.map((n) => n.trim()).filter(Boolean))
+  ).slice(0, 25)
+  if (clean.length === 0) return []
+
+  const allDomains = clean.flatMap((n) => candidatesFor(n))
+  const domainResults = await checkDomains(allDomains)
+  const byDomain = new Map(domainResults.map((r) => [r.domain, r]))
+
+  return clean.map((name) => {
+    const available = candidatesFor(name)
+      .map((d) => byDomain.get(d))
+      .filter((r): r is DomainResult => !!r && r.status === 'available')
+    return {
+      idea: 'Your submitted name.',
+      name,
+      tagline: '',
+      why: '',
+      audience: '',
+      available,
+      trademark: checkTrademark(name),
+    }
+  })
+}
+
+export async function runOneRound(input: OneRoundInput): Promise<OneRoundOutput> {
+  const { niche, styles, perspective = 'both' } = input
+  const batchSize = input.batchSize ?? 8
+  const avoid = input.avoid ?? []
+  const t0 = Date.now()
+
+  const batch = await generateBatch(niche, styles, perspective, batchSize, avoid)
+  const fresh = batch
+    .filter((s) => s && typeof s.name === 'string' && s.name.trim())
+    .map((s) => ({
+      idea: (s.idea || '').trim(),
+      name: (s.name || '').trim(),
+      tagline: (s.tagline || '').trim(),
+      why: (s.why || '').trim(),
+      audience: (s.audience || '').trim(),
+    }))
+
+  const tried = fresh.map((s) => s.name)
+  if (fresh.length === 0) {
+    console.log('[ideas:round] 0 fresh names')
+    return { found: [], tried, checkedCount: 0 }
+  }
+
+  const allDomains = fresh.flatMap((s) => candidatesFor(s.name))
+  const domainResults = await checkDomains(allDomains)
+  const byDomain = new Map(domainResults.map((r) => [r.domain, r]))
+
+  const found: IdeaResult[] = []
+  for (const s of fresh) {
+    const available = candidatesFor(s.name)
+      .map((d) => byDomain.get(d))
+      .filter((r): r is DomainResult => !!r && r.status === 'available')
+    if (available.length > 0) {
+      found.push({ ...s, available, trademark: checkTrademark(s.name) })
+    }
+  }
+
+  const availCount = domainResults.filter((r) => r.status === 'available').length
+  const unknownCount = domainResults.filter((r) => r.status === 'unknown').length
+  console.log(
+    `[ideas:round] ${fresh.length} names, checked ${domainResults.length} domains ` +
+      `(avail ${availCount}, unknown ${unknownCount}), found ${found.length} in ${((Date.now() - t0) / 1000).toFixed(1)}s`
+  )
+
+  return { found, tried, checkedCount: domainResults.length }
+}
+
 /**
  * Over-generate and filter: keep asking for names, check .com/.ai availability,
  * and collect only the ones with an available domain until we hit `target`.

@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Lightbulb, Sparkles, Loader2, Check, ExternalLink, ShieldAlert, Scale, Info, Star } from 'lucide-react'
 
 type NameStyle = 'evocative' | 'coined' | 'compound' | 'playful' | 'literal'
@@ -202,48 +202,107 @@ export default function GrowPage() {
     setStyles((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]))
   }
 
+  // Frontend-driven loop: many small round requests instead of one long one, so we
+  // never hit a serverless timeout. Results accumulate live until we reach the target
+  // (20) or the user clicks Stop.
+  const stopRef = useRef(false)
+  const TARGET = 20
+
   const generate = async (e?: React.FormEvent) => {
     e?.preventDefault()
     setRunning(true)
     setError(null)
     setResults([])
+    stopRef.current = false
     setProgress({ checked: 0, found: 0 })
+
+    const accumulated: IdeaResult[] = []
+    const tried: string[] = []
+    let checkedTotal = 0
+    let emptyStreak = 0
+
     try {
-      const res = await fetch('/api/ops/ideas', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ niche, styles, perspective, target: 20 }),
-      })
-      if (!res.ok || !res.body) {
-        const d = await res.json().catch(() => ({}))
-        throw new Error(d?.error || `Failed (${res.status})`)
-      }
-      // Read the newline-delimited JSON stream.
-      const reader = res.body.getReader()
-      const decoder = new TextDecoder()
-      let buf = ''
-      for (;;) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buf += decoder.decode(value, { stream: true })
-        const lines = buf.split('\n')
-        buf = lines.pop() || ''
-        for (const line of lines) {
-          if (!line.trim()) continue
-          const evt = JSON.parse(line)
-          if (evt.type === 'progress') setProgress({ checked: evt.checked, found: evt.found })
-          else if (evt.type === 'done') {
-            const found: IdeaResult[] = evt.results || []
-            setResults(found)
-            rememberDiscovered(found) // keep every discovered name, persisted
-          } else if (evt.type === 'error') setError(evt.error)
+      // Cap rounds generously; the loop stops early once TARGET is hit.
+      for (let round = 0; round < 25 && accumulated.length < TARGET && !stopRef.current; round++) {
+        const res = await fetch('/api/ops/ideas-round', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ niche, styles, perspective, avoid: tried.slice(-200) }),
+        })
+        if (!res.ok) {
+          const d = await res.json().catch(() => ({}))
+          throw new Error(d?.error || `Failed (${res.status})`)
         }
+        const out = await res.json()
+        checkedTotal += out.checkedCount || 0
+        for (const t of out.tried || []) tried.push(t)
+
+        const found: IdeaResult[] = out.found || []
+        if (found.length === 0) {
+          emptyStreak++
+          if (emptyStreak >= 3) break // three dry rounds: the niche is likely exhausted
+        } else {
+          emptyStreak = 0
+          for (const f of found) {
+            if (!accumulated.some((a) => a.name.toLowerCase() === f.name.toLowerCase())) {
+              accumulated.push(f)
+            }
+          }
+          const snapshot = accumulated.slice(0, TARGET)
+          setResults([...snapshot])
+          rememberDiscovered(found) // persist every discovered name as we go
+        }
+        setProgress({ checked: checkedTotal, found: accumulated.length })
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to generate ideas')
     } finally {
       setRunning(false)
       setProgress(null)
+    }
+  }
+
+  const stopGenerating = () => {
+    stopRef.current = true
+  }
+
+  // Manual check: user pastes their own names/domains, we run them through the same
+  // availability + trademark checks and show them as result cards.
+  const [pasteInput, setPasteInput] = useState('')
+  const [checkingPaste, setCheckingPaste] = useState(false)
+
+  const checkPasted = async () => {
+    const names = Array.from(
+      new Set(
+        pasteInput
+          .split(/[\n,]+/)
+          .map((s) => s.trim().replace(/^https?:\/\//, '').replace(/\.(com|ai|net|io|co)$/i, '').replace(/[^a-zA-Z0-9]/g, ''))
+          .filter(Boolean)
+      )
+    ).slice(0, 25)
+    if (names.length === 0) return
+    setCheckingPaste(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/ops/check-names', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ names }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        throw new Error(d?.error || `Failed (${res.status})`)
+      }
+      const out = await res.json()
+      const checked: IdeaResult[] = out.results || []
+      // Show all (including taken) so the user sees the verdict on their own names.
+      setResults(checked)
+      // Only persist the ones that have an available domain.
+      rememberDiscovered(checked.filter((c) => c.available.length > 0))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to check names')
+    } finally {
+      setCheckingPaste(false)
     }
   }
 
@@ -341,15 +400,52 @@ export default function GrowPage() {
           })}
         </div>
 
-        <button
-          type="submit"
-          disabled={running}
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-50"
-        >
-          {running ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
-          {running ? 'Finding available names...' : 'Find 20 Available Names'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="submit"
+            disabled={running}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-50"
+          >
+            {running ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+            {running ? 'Finding available names...' : 'Find 20 Available Names'}
+          </button>
+          {running && (
+            <button
+              type="button"
+              onClick={stopGenerating}
+              className="rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+            >
+              Stop
+            </button>
+          )}
+        </div>
       </form>
+
+      {/* Manual check: paste your own names/domains */}
+      <div className="mt-4 rounded-lg border border-border/70 bg-secondary/30 p-4">
+        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+          Or check your own names
+        </p>
+        <p className="mt-0.5 text-[12px] text-muted-foreground/80">
+          Paste names or domains (one per line or comma-separated). We check .com + .ai and trademark for each.
+        </p>
+        <textarea
+          value={pasteInput}
+          onChange={(e) => setPasteInput(e.target.value)}
+          rows={3}
+          placeholder={'echelon\nhirepath.ai\nTalentMark, Rolevo'}
+          className="mt-2 w-full resize-y rounded-lg border border-border bg-background/40 px-3 py-2 text-sm text-foreground outline-none focus:border-foreground/30"
+        />
+        <button
+          type="button"
+          onClick={checkPasted}
+          disabled={checkingPaste || !pasteInput.trim()}
+          className="mt-2 inline-flex items-center justify-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted/50 disabled:opacity-50"
+        >
+          {checkingPaste ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+          {checkingPaste ? 'Checking...' : 'Check these names'}
+        </button>
+      </div>
 
       {error && (
         <div className="mt-4 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-400">
@@ -497,6 +593,14 @@ export default function GrowPage() {
   )
 }
 
+interface VerifyState {
+  loading: boolean
+  available: boolean | null
+  price: string | null
+  premium: boolean
+  message: string | null
+}
+
 function IdeaCard({
   r,
   saved,
@@ -508,6 +612,34 @@ function IdeaCard({
   onSave: (idea: IdeaResult) => void
   onRemove: (name: string) => void
 }) {
+  const [verify, setVerify] = useState<Record<string, VerifyState>>({})
+
+  const verifyDomain = async (domain: string) => {
+    setVerify((p) => ({ ...p, [domain]: { loading: true, available: null, price: null, premium: false, message: null } }))
+    try {
+      const res = await fetch('/api/ops/verify-domain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain }),
+      })
+      const data = await res.json()
+      setVerify((p) => ({
+        ...p,
+        [domain]: {
+          loading: false,
+          available: typeof data.available === 'boolean' ? data.available : null,
+          price: data.price ?? null,
+          premium: !!data.premium,
+          message: data.rateLimited
+            ? 'Porkbun busy, wait ~10s and retry'
+            : data.error || null,
+        },
+      }))
+    } catch {
+      setVerify((p) => ({ ...p, [domain]: { loading: false, available: null, price: null, premium: false, message: 'Verify failed' } }))
+    }
+  }
+
   return (
     <div className="flex flex-col rounded-xl border border-border bg-secondary/40 p-5">
       <div className="flex items-start justify-between gap-2">
