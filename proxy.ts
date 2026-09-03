@@ -11,8 +11,16 @@ import type { NextRequest } from 'next/server'
 
 const SESSION_COOKIE = 'quadropus_session'
 
+// TEMPORARY: auth gate disabled while building. Flip back to true (or wire to an env
+// var like process.env.AUTH_ENABLED === 'true') to re-enable the login gate. The login
+// page and /api/auth routes remain in place, so re-enabling is just this one line.
+const AUTH_ENABLED = false
+
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
+
+  // Gate is off: let everything through.
+  if (!AUTH_ENABLED) return NextResponse.next()
 
   // These POST endpoints authenticate with their own bearer token (checked in the route),
   // so they bypass the session gate: lead ingestion (cross-origin from FundyLaunch/FundyLogic)
