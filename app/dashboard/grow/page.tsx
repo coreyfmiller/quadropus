@@ -441,10 +441,10 @@ export default function GrowPage() {
           type="button"
           onClick={checkPasted}
           disabled={checkingPaste || !pasteInput.trim()}
-          className="mt-2 inline-flex items-center justify-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted/50 disabled:opacity-50"
+          className="mt-3 inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-background transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {checkingPaste ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
-          {checkingPaste ? 'Checking...' : 'Check these names'}
+          {checkingPaste ? 'Checking...' : 'Check These Names'}
         </button>
       </div>
 
