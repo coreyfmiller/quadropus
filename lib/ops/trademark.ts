@@ -37,7 +37,7 @@ export function checkTrademark(name: string): TrademarkCheck {
   const hit = KNOWN_BRANDS.find((b) => lower.includes(b))
   const flag: TrademarkFlag = hit ? 'caution' : 'clear-signal'
   const reason = hit
-    ? `Contains "${hit}", which resembles a well-known brand. Verify carefully before use.`
+    ? `Resembles the well-known brand "${hit}". Possible conflict, but may be workable in a different industry category or with a tweak. Verify before committing.`
     : 'No obvious well-known-brand collision. Still verify against the official databases.'
 
   return {

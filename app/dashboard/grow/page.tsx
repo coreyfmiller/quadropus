@@ -46,6 +46,8 @@ const PERSPECTIVES: { id: Perspective; label: string; hint: string }[] = [
 ]
 
 const SHORTLIST_KEY = 'quadropus_idealab_shortlist'
+const DISCOVERED_KEY = 'quadropus_idealab_discovered'
+const CHECKED_KEY = 'quadropus_idealab_checked' // domain -> { status, confidence, at } cache of everything checked
 
 // Names Corey wants to keep on hand. Seeded into the shortlist on first load
 // (he can unstar/remove them anytime). Real availability confirmed 2026-09.
@@ -90,6 +92,8 @@ export default function GrowPage() {
   const [perspective, setPerspective] = useState<Perspective>('both')
   const [results, setResults] = useState<IdeaResult[]>([])
   const [shortlist, setShortlist] = useState<IdeaResult[]>([])
+  const [discovered, setDiscovered] = useState<IdeaResult[]>([])
+  const [checkedCount, setCheckedCount] = useState(0)
   const [running, setRunning] = useState(false)
   const [progress, setProgress] = useState<{ checked: number; found: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -111,6 +115,44 @@ export default function GrowPage() {
     } catch { /* ignore */ }
   }, [shortlist])
 
+  // Load + persist the running "discovered" history (every available name ever found).
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DISCOVERED_KEY)
+      if (raw) setDiscovered(JSON.parse(raw))
+      const chk = localStorage.getItem(CHECKED_KEY)
+      if (chk) setCheckedCount(Object.keys(JSON.parse(chk)).length)
+    } catch { /* ignore */ }
+  }, [])
+  useEffect(() => {
+    try {
+      localStorage.setItem(DISCOVERED_KEY, JSON.stringify(discovered))
+    } catch { /* ignore */ }
+  }, [discovered])
+
+  // Merge freshly found results into the discovered history, de-duped by name (newest first).
+  const rememberDiscovered = useCallback((found: IdeaResult[]) => {
+    if (!found.length) return
+    setDiscovered((prev) => {
+      const byName = new Map(prev.map((d) => [d.name.toLowerCase(), d]))
+      for (const f of found) byName.set(f.name.toLowerCase(), f)
+      return Array.from(byName.values())
+    })
+    // Also record every checked domain into our local "already checked" cache.
+    try {
+      const raw = localStorage.getItem(CHECKED_KEY)
+      const cache: Record<string, { status: string; confidence: string; at: string }> = raw ? JSON.parse(raw) : {}
+      const now = new Date().toISOString()
+      for (const f of found) {
+        for (const d of f.available) {
+          cache[d.domain.toLowerCase()] = { status: d.status, confidence: d.confidence, at: now }
+        }
+      }
+      localStorage.setItem(CHECKED_KEY, JSON.stringify(cache))
+      setCheckedCount(Object.keys(cache).length)
+    } catch { /* ignore */ }
+  }, [])
+
   const isSaved = useCallback(
     (name: string) => shortlist.some((s) => s.name.toLowerCase() === name.toLowerCase()),
     [shortlist]
@@ -125,6 +167,18 @@ export default function GrowPage() {
   const removeIdea = (name: string) => {
     setShortlist((prev) => prev.filter((s) => s.name.toLowerCase() !== name.toLowerCase()))
   }
+
+  // Re-add the starter names (TalentMark.ai, HirePath.ai) if they are missing.
+  const restoreSeed = () => {
+    setShortlist((prev) => {
+      const have = new Set(prev.map((s) => s.name.toLowerCase()))
+      const missing = SEED_SHORTLIST.filter((s) => !have.has(s.name.toLowerCase()))
+      return missing.length ? [...missing, ...prev] : prev
+    })
+  }
+  const seedMissing = SEED_SHORTLIST.some(
+    (s) => !shortlist.some((x) => x.name.toLowerCase() === s.name.toLowerCase())
+  )
 
   const toggleStyle = (s: NameStyle) => {
     setStyles((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]))
@@ -160,8 +214,11 @@ export default function GrowPage() {
           if (!line.trim()) continue
           const evt = JSON.parse(line)
           if (evt.type === 'progress') setProgress({ checked: evt.checked, found: evt.found })
-          else if (evt.type === 'done') setResults(evt.results || [])
-          else if (evt.type === 'error') setError(evt.error)
+          else if (evt.type === 'done') {
+            const found: IdeaResult[] = evt.results || []
+            setResults(found)
+            rememberDiscovered(found) // keep every discovered name, persisted
+          } else if (evt.type === 'error') setError(evt.error)
         }
       }
     } catch (e) {
@@ -199,6 +256,12 @@ export default function GrowPage() {
           domain can still infringe a trademark. Before you register or build on a name, run the linked{' '}
           <span className="text-foreground">USPTO</span> (US) and <span className="text-foreground">CIPO</span>{' '}
           (Canada) searches, and check social handles. For anything real, confirm with a lawyer.
+          {checkedCount > 0 && (
+            <>
+              <br />
+              <span className="text-muted-foreground/70">{checkedCount} domains recorded in this device&apos;s checked history.</span>
+            </>
+          )}
         </div>
       </div>
 
@@ -284,22 +347,42 @@ export default function GrowPage() {
       )}
 
       {/* Shortlist (kept names, persists across searches) */}
-      {shortlist.length > 0 && (
+      {(shortlist.length > 0 || seedMissing) && (
         <div className="mt-6 rounded-xl border border-brand/25 bg-brand/[0.04] p-4">
-          <div className="flex items-center gap-2">
-            <Star className="size-4 text-brand" fill="currentColor" />
-            <h2 className="text-sm font-semibold text-foreground">Shortlist ({shortlist.length})</h2>
-            <span className="text-[11px] text-muted-foreground">kept across searches</span>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Star className="size-4 text-brand" fill="currentColor" />
+              <h2 className="text-sm font-semibold text-foreground">
+                Shortlist{shortlist.length > 0 && ` (${shortlist.length})`}
+              </h2>
+              <span className="text-[11px] text-muted-foreground">kept across searches</span>
+            </div>
+            {seedMissing && (
+              <button
+                type="button"
+                onClick={restoreSeed}
+                className="shrink-0 rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+              >
+                Restore TalentMark + HirePath
+              </button>
+            )}
           </div>
-          <div className="mt-3 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {shortlist.map((r) => (
-              <IdeaCard key={r.name} r={r} saved onSave={saveIdea} onRemove={removeIdea} />
-            ))}
-          </div>
+          {shortlist.length > 0 && (
+            <div className="mt-3 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {shortlist.map((r) => (
+                <IdeaCard key={r.name} r={r} saved onSave={saveIdea} onRemove={removeIdea} />
+              ))}
+            </div>
+          )}
+          {shortlist.length === 0 && (
+            <p className="mt-2 text-[12px] text-muted-foreground">
+              Shortlist is empty. Click "Restore" above to bring back your starter names.
+            </p>
+          )}
         </div>
       )}
 
-      {/* Results */}
+      {/* Results (latest search) */}
       {results.length > 0 && (
         <>
           <p className="mt-6 text-sm text-muted-foreground">
@@ -313,7 +396,39 @@ export default function GrowPage() {
         </>
       )}
 
-      {!running && results.length === 0 && !error && shortlist.length === 0 && (
+      {/* Discovered history (every available name ever found, persisted) */}
+      {discovered.length > 0 && (
+        <div className="mt-10 border-t border-border/60 pt-6">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-foreground">
+                All discovered names ({discovered.length})
+              </h2>
+              <p className="text-[11px] text-muted-foreground">
+                Every available name found on this device. Nothing is lost between searches. Star any to shortlist.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (confirm('Clear the discovered-names history? Your shortlist is not affected.')) {
+                  setDiscovered([])
+                }
+              }}
+              className="shrink-0 rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+            >
+              Clear history
+            </button>
+          </div>
+          <div className="mt-3 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {discovered.map((r) => (
+              <IdeaCard key={r.name} r={r} saved={isSaved(r.name)} onSave={saveIdea} onRemove={removeIdea} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!running && results.length === 0 && !error && shortlist.length === 0 && discovered.length === 0 && (
         <div className="mt-8 rounded-xl border border-dashed border-border/60 bg-card/30 p-12 text-center">
           <p className="text-sm text-muted-foreground">
             Describe a space, pick a naming style (or leave it as a mix), and hit generate. You will
@@ -397,7 +512,7 @@ function IdeaCard({
               r.trademark.flag === 'caution' ? 'text-amber-400' : 'text-muted-foreground'
             }`}
           >
-            {r.trademark.flag === 'caution' ? 'Trademark: caution' : 'Trademark: no obvious conflict'}
+            {r.trademark.flag === 'caution' ? 'Trademark: possible conflict (may be workable)' : 'Trademark: no obvious conflict'}
           </span>
         </div>
         <p className="mt-1 text-[10.5px] leading-snug text-muted-foreground/80">
