@@ -1,6 +1,6 @@
 "use client"
 
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import {
@@ -15,6 +15,8 @@ import {
   Settings,
   Send,
   FileText,
+  Shield,
+  LogOut,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -31,11 +33,19 @@ const navItems = [
   { label: 'Analytics', href: '/dashboard/analytics', icon: BarChart3 },
   { label: 'Clients', href: '/dashboard/clients', icon: Users },
   { divider: true },
+  { label: 'Command Center', href: '/dashboard/command-center', icon: Shield },
   { label: 'Settings', href: '/dashboard/settings', icon: Settings },
 ] as const
 
 export function DashboardNav() {
   const pathname = usePathname()
+  const router = useRouter()
+
+  const handleLogout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' })
+    router.push('/login')
+    router.refresh()
+  }
 
   return (
     <aside className="hidden w-56 shrink-0 flex-col border-r border-border/70 bg-background/40 p-4 md:flex">
@@ -89,8 +99,21 @@ export function DashboardNav() {
 
       {/* Bottom */}
       <div className="rounded-lg border border-border/70 bg-secondary/40 p-3">
-        <p className="text-[11px] font-medium text-foreground">Corey Miller</p>
-        <p className="mt-0.5 text-[10.5px] font-light text-muted-foreground">Admin</p>
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <p className="text-[11px] font-medium text-foreground">Corey Miller</p>
+            <p className="mt-0.5 text-[10.5px] font-light text-muted-foreground">Admin</p>
+          </div>
+          <button
+            type="button"
+            onClick={handleLogout}
+            title="Sign out"
+            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+            aria-label="Sign out"
+          >
+            <LogOut className="size-[15px]" strokeWidth={1.5} />
+          </button>
+        </div>
       </div>
     </aside>
   )
