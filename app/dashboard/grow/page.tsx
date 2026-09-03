@@ -1,7 +1,7 @@
 ﻿'use client'
 
-import { useState } from 'react'
-import { Lightbulb, Sparkles, Loader2, Check, ExternalLink, ShieldAlert, Scale, Info } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Lightbulb, Sparkles, Loader2, Check, ExternalLink, ShieldAlert, Scale, Info, Star } from 'lucide-react'
 
 type NameStyle = 'evocative' | 'coined' | 'compound' | 'playful' | 'literal'
 type Perspective = 'customer' | 'buyer' | 'both'
@@ -45,14 +45,45 @@ const PERSPECTIVES: { id: Perspective; label: string; hint: string }[] = [
   { id: 'both', label: 'Both', hint: 'Works for both sides of a marketplace' },
 ]
 
+const SHORTLIST_KEY = 'quadropus_idealab_shortlist'
+
 export default function GrowPage() {
   const [niche, setNiche] = useState('')
   const [styles, setStyles] = useState<NameStyle[]>([])
   const [perspective, setPerspective] = useState<Perspective>('both')
   const [results, setResults] = useState<IdeaResult[]>([])
+  const [shortlist, setShortlist] = useState<IdeaResult[]>([])
   const [running, setRunning] = useState(false)
   const [progress, setProgress] = useState<{ checked: number; found: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  // Load saved shortlist once on mount; persist on change.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(SHORTLIST_KEY)
+      if (raw) setShortlist(JSON.parse(raw))
+    } catch { /* ignore */ }
+  }, [])
+  useEffect(() => {
+    try {
+      localStorage.setItem(SHORTLIST_KEY, JSON.stringify(shortlist))
+    } catch { /* ignore */ }
+  }, [shortlist])
+
+  const isSaved = useCallback(
+    (name: string) => shortlist.some((s) => s.name.toLowerCase() === name.toLowerCase()),
+    [shortlist]
+  )
+
+  const saveIdea = (idea: IdeaResult) => {
+    setShortlist((prev) =>
+      prev.some((s) => s.name.toLowerCase() === idea.name.toLowerCase()) ? prev : [...prev, idea]
+    )
+  }
+
+  const removeIdea = (name: string) => {
+    setShortlist((prev) => prev.filter((s) => s.name.toLowerCase() !== name.toLowerCase()))
+  }
 
   const toggleStyle = (s: NameStyle) => {
     setStyles((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]))
@@ -211,6 +242,22 @@ export default function GrowPage() {
         </p>
       )}
 
+      {/* Shortlist (kept names, persists across searches) */}
+      {shortlist.length > 0 && (
+        <div className="mt-6 rounded-xl border border-brand/25 bg-brand/[0.04] p-4">
+          <div className="flex items-center gap-2">
+            <Star className="size-4 text-brand" fill="currentColor" />
+            <h2 className="text-sm font-semibold text-foreground">Shortlist ({shortlist.length})</h2>
+            <span className="text-[11px] text-muted-foreground">kept across searches</span>
+          </div>
+          <div className="mt-3 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {shortlist.map((r) => (
+              <IdeaCard key={r.name} r={r} saved onSave={saveIdea} onRemove={removeIdea} />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Results */}
       {results.length > 0 && (
         <>
@@ -219,77 +266,13 @@ export default function GrowPage() {
           </p>
           <div className="mt-3 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {results.map((r) => (
-              <div key={r.name} className="flex flex-col rounded-xl border border-border bg-secondary/40 p-5">
-                <h3 className="font-display text-lg font-bold text-foreground">{r.name}</h3>
-                {r.tagline && <p className="mt-0.5 text-sm font-medium text-brand">{r.tagline}</p>}
-                <p className="mt-2 flex-1 text-sm leading-relaxed text-muted-foreground">{r.idea}</p>
-                {r.why && <p className="mt-2 text-[12px] italic text-muted-foreground/80">{r.why}</p>}
-                {r.audience && (
-                  <p className="mt-2 text-[11px] uppercase tracking-wide text-muted-foreground/70">
-                    For: {r.audience}
-                  </p>
-                )}
-                <div className="mt-4 space-y-1.5 border-t border-border/50 pt-3">
-                  {r.available.map((d) => (
-                    <div key={d.domain} className="flex items-center justify-between gap-2 text-sm">
-                      <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
-                        <Check className="size-3.5 text-emerald-400" />
-                        {d.domain}
-                      </span>
-                      <span className="flex items-center gap-2">
-                        <span className="text-[11px] text-emerald-400">
-                          {d.confidence === 'likely' ? 'likely free' : 'available'}
-                        </span>
-                        {d.registerUrl && (
-                          <a
-                            href={d.registerUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-0.5 text-[11px] font-medium text-brand hover:underline"
-                          >
-                            register <ExternalLink className="size-3" />
-                          </a>
-                        )}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Trademark signal (preliminary, not clearance) */}
-                <div className="mt-3 border-t border-border/50 pt-3">
-                  <div className="flex items-center gap-1.5">
-                    {r.trademark.flag === 'caution' ? (
-                      <ShieldAlert className="size-3.5 text-amber-400" />
-                    ) : (
-                      <Scale className="size-3.5 text-muted-foreground" />
-                    )}
-                    <span
-                      className={`text-[11px] font-medium ${
-                        r.trademark.flag === 'caution' ? 'text-amber-400' : 'text-muted-foreground'
-                      }`}
-                    >
-                      {r.trademark.flag === 'caution' ? 'Trademark: caution' : 'Trademark: no obvious conflict'}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-[10.5px] leading-snug text-muted-foreground/80">
-                    {r.trademark.reason} Verify:
-                    {' '}
-                    <a href={r.trademark.usptoUrl} target="_blank" rel="noopener noreferrer" className="text-brand hover:underline">
-                      USPTO
-                    </a>
-                    {' · '}
-                    <a href={r.trademark.cipoUrl} target="_blank" rel="noopener noreferrer" className="text-brand hover:underline">
-                      CIPO
-                    </a>
-                  </p>
-                </div>
-              </div>
+              <IdeaCard key={r.name} r={r} saved={isSaved(r.name)} onSave={saveIdea} onRemove={removeIdea} />
             ))}
           </div>
         </>
       )}
 
-      {!running && results.length === 0 && !error && (
+      {!running && results.length === 0 && !error && shortlist.length === 0 && (
         <div className="mt-8 rounded-xl border border-dashed border-border/60 bg-card/30 p-12 text-center">
           <p className="text-sm text-muted-foreground">
             Describe a space, pick a naming style (or leave it as a mix), and hit generate. You will
@@ -297,6 +280,96 @@ export default function GrowPage() {
           </p>
         </div>
       )}
+    </div>
+  )
+}
+
+function IdeaCard({
+  r,
+  saved,
+  onSave,
+  onRemove,
+}: {
+  r: IdeaResult
+  saved: boolean
+  onSave: (idea: IdeaResult) => void
+  onRemove: (name: string) => void
+}) {
+  return (
+    <div className="flex flex-col rounded-xl border border-border bg-secondary/40 p-5">
+      <div className="flex items-start justify-between gap-2">
+        <h3 className="font-display text-lg font-bold text-foreground">{r.name}</h3>
+        <button
+          type="button"
+          onClick={() => (saved ? onRemove(r.name) : onSave(r))}
+          title={saved ? 'Remove from shortlist' : 'Keep this one'}
+          aria-label={saved ? 'Remove from shortlist' : 'Keep this one'}
+          className={`shrink-0 rounded-md p-1 transition-colors ${
+            saved ? 'text-brand' : 'text-muted-foreground/50 hover:text-brand'
+          }`}
+        >
+          <Star className="size-4" fill={saved ? 'currentColor' : 'none'} />
+        </button>
+      </div>
+      {r.tagline && <p className="mt-0.5 text-sm font-medium text-brand">{r.tagline}</p>}
+      <p className="mt-2 flex-1 text-sm leading-relaxed text-muted-foreground">{r.idea}</p>
+      {r.why && <p className="mt-2 text-[12px] italic text-muted-foreground/80">{r.why}</p>}
+      {r.audience && (
+        <p className="mt-2 text-[11px] uppercase tracking-wide text-muted-foreground/70">For: {r.audience}</p>
+      )}
+      <div className="mt-4 space-y-1.5 border-t border-border/50 pt-3">
+        {r.available.map((d) => (
+          <div key={d.domain} className="flex items-center justify-between gap-2 text-sm">
+            <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
+              <Check className="size-3.5 text-emerald-400" />
+              {d.domain}
+            </span>
+            <span className="flex items-center gap-2">
+              <span className="text-[11px] text-emerald-400">
+                {d.confidence === 'likely' ? 'likely free' : 'available'}
+              </span>
+              {d.registerUrl && (
+                <a
+                  href={d.registerUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-0.5 text-[11px] font-medium text-brand hover:underline"
+                >
+                  register <ExternalLink className="size-3" />
+                </a>
+              )}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {/* Trademark signal (preliminary, not clearance) */}
+      <div className="mt-3 border-t border-border/50 pt-3">
+        <div className="flex items-center gap-1.5">
+          {r.trademark.flag === 'caution' ? (
+            <ShieldAlert className="size-3.5 text-amber-400" />
+          ) : (
+            <Scale className="size-3.5 text-muted-foreground" />
+          )}
+          <span
+            className={`text-[11px] font-medium ${
+              r.trademark.flag === 'caution' ? 'text-amber-400' : 'text-muted-foreground'
+            }`}
+          >
+            {r.trademark.flag === 'caution' ? 'Trademark: caution' : 'Trademark: no obvious conflict'}
+          </span>
+        </div>
+        <p className="mt-1 text-[10.5px] leading-snug text-muted-foreground/80">
+          {r.trademark.reason} Verify:{' '}
+          <a href={r.trademark.usptoUrl} target="_blank" rel="noopener noreferrer" className="text-brand hover:underline">
+            USPTO
+          </a>
+          {' · '}
+          <a href={r.trademark.cipoUrl} target="_blank" rel="noopener noreferrer" className="text-brand hover:underline">
+            CIPO
+          </a>
+        </p>
+      </div>
     </div>
   )
 }
