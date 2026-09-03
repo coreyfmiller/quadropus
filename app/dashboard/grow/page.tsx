@@ -1,81 +1,85 @@
 ﻿'use client'
 
 import { useState } from 'react'
-import { Lightbulb, Sparkles, Loader2, Check, X, HelpCircle, ExternalLink } from 'lucide-react'
+import { Lightbulb, Sparkles, Loader2, Check, ExternalLink } from 'lucide-react'
 
-type DomainStatus = 'available' | 'taken' | 'unknown'
+type NameStyle = 'evocative' | 'coined' | 'compound' | 'playful' | 'literal'
 
 interface DomainResult {
   domain: string
   tld: string
-  status: DomainStatus
+  status: 'available' | 'taken' | 'unknown'
   confidence: 'confirmed' | 'likely'
-  method: 'rdap' | 'dns'
   registerUrl: string | null
 }
 
-interface Idea {
+interface IdeaResult {
+  idea: string
   name: string
-  pitch: string
+  why: string
   audience: string
-  domains: string[]
+  available: DomainResult[]
 }
+
+const STYLES: { id: NameStyle; label: string; hint: string }[] = [
+  { id: 'evocative', label: 'Evocative', hint: 'Real words with feeling' },
+  { id: 'coined', label: 'Coined', hint: 'Fresh invented words' },
+  { id: 'compound', label: 'Compound', hint: 'Two words joined' },
+  { id: 'playful', label: 'Playful', hint: 'Unexpected, memorable' },
+  { id: 'literal', label: 'Literal', hint: 'Clear and descriptive' },
+]
 
 export default function GrowPage() {
   const [niche, setNiche] = useState('')
-  const [ideas, setIdeas] = useState<Idea[]>([])
-  const [domainMap, setDomainMap] = useState<Record<string, DomainResult>>({})
-  const [loading, setLoading] = useState(false)
-  const [checking, setChecking] = useState(false)
+  const [styles, setStyles] = useState<NameStyle[]>([])
+  const [results, setResults] = useState<IdeaResult[]>([])
+  const [running, setRunning] = useState(false)
+  const [progress, setProgress] = useState<{ checked: number; found: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  const toggleStyle = (s: NameStyle) => {
+    setStyles((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]))
+  }
 
   const generate = async (e?: React.FormEvent) => {
     e?.preventDefault()
-    setLoading(true)
+    setRunning(true)
     setError(null)
-    setIdeas([])
-    setDomainMap({})
+    setResults([])
+    setProgress({ checked: 0, found: 0 })
     try {
       const res = await fetch('/api/ops/ideas', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ niche, count: 6 }),
+        body: JSON.stringify({ niche, styles, target: 20 }),
       })
-      if (!res.ok) {
+      if (!res.ok || !res.body) {
         const d = await res.json().catch(() => ({}))
         throw new Error(d?.error || `Failed (${res.status})`)
       }
-      const data = await res.json()
-      const list: Idea[] = data.ideas || []
-      setIdeas(list)
-      // Kick off domain checks for all candidates.
-      void checkDomains(list.flatMap((i) => i.domains))
+      // Read the newline-delimited JSON stream.
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buf = ''
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buf += decoder.decode(value, { stream: true })
+        const lines = buf.split('\n')
+        buf = lines.pop() || ''
+        for (const line of lines) {
+          if (!line.trim()) continue
+          const evt = JSON.parse(line)
+          if (evt.type === 'progress') setProgress({ checked: evt.checked, found: evt.found })
+          else if (evt.type === 'done') setResults(evt.results || [])
+          else if (evt.type === 'error') setError(evt.error)
+        }
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to generate ideas')
     } finally {
-      setLoading(false)
-    }
-  }
-
-  const checkDomains = async (domains: string[]) => {
-    if (domains.length === 0) return
-    setChecking(true)
-    try {
-      const res = await fetch('/api/ops/domain-check', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ domains }),
-      })
-      if (res.ok) {
-        const data = await res.json()
-        const map: Record<string, DomainResult> = {}
-        for (const r of data.results as DomainResult[]) map[r.domain] = r
-        setDomainMap(map)
-      }
-    } catch {
-      // leave domains unknown
-    } finally {
-      setChecking(false)
+      setRunning(false)
+      setProgress(null)
     }
   }
 
@@ -88,26 +92,53 @@ export default function GrowPage() {
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-foreground">Idea Lab</h1>
           <p className="text-[13px] font-light text-muted-foreground">
-            Generate brandable ideas and check .com / .ai availability in one shot.
+            Brand-strategist naming. Shows only ideas with an available .com or .ai.
           </p>
         </div>
       </div>
 
-      {/* Input */}
-      <form onSubmit={generate} className="mt-6 flex flex-col gap-3 sm:flex-row">
+      {/* Controls */}
+      <form onSubmit={generate} className="mt-6 space-y-4">
         <input
           value={niche}
           onChange={(e) => setNiche(e.target.value)}
-          placeholder="A niche or vibe (e.g. AI tools for tradespeople), or leave blank for a mix"
-          className="flex-1 rounded-lg border border-border bg-secondary/40 px-3 py-2.5 text-sm text-foreground outline-none focus:border-foreground/30"
+          placeholder="Describe the space (e.g. AI job bank that screens and interviews candidates)"
+          className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2.5 text-sm text-foreground outline-none focus:border-foreground/30"
         />
+
+        {/* Style chips */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Naming style:</span>
+          {STYLES.map((s) => {
+            const active = styles.includes(s.id)
+            return (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => toggleStyle(s.id)}
+                title={s.hint}
+                className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                  active
+                    ? 'border-brand bg-brand/15 font-medium text-foreground'
+                    : 'border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                }`}
+              >
+                {s.label}
+              </button>
+            )
+          })}
+          <span className="text-[11px] text-muted-foreground/60">
+            {styles.length === 0 ? '(mix of all)' : ''}
+          </span>
+        </div>
+
         <button
           type="submit"
-          disabled={loading}
+          disabled={running}
           className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-50"
         >
-          {loading ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
-          {loading ? 'Generating...' : 'Generate Ideas'}
+          {running ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+          {running ? 'Finding available names...' : 'Find 20 Available Names'}
         </button>
       </form>
 
@@ -117,88 +148,69 @@ export default function GrowPage() {
         </div>
       )}
 
-      {checking && (
+      {running && progress && (
         <p className="mt-4 inline-flex items-center gap-2 text-[12px] text-muted-foreground">
-          <Loader2 className="size-3.5 animate-spin" /> Checking domain availability...
+          <Loader2 className="size-3.5 animate-spin" />
+          Checked {progress.checked} domains, found {progress.found} available so far...
         </p>
       )}
 
-      {/* Ideas grid */}
-      {ideas.length > 0 && (
-        <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {ideas.map((idea) => (
-            <div key={idea.name} className="flex flex-col rounded-xl border border-border bg-secondary/40 p-5">
-              <h3 className="font-display text-lg font-bold text-foreground">{idea.name}</h3>
-              <p className="mt-1.5 flex-1 text-sm leading-relaxed text-muted-foreground">{idea.pitch}</p>
-              {idea.audience && (
-                <p className="mt-2 text-[11px] uppercase tracking-wide text-muted-foreground/70">
-                  For: {idea.audience}
-                </p>
-              )}
-              <div className="mt-4 space-y-1.5 border-t border-border/50 pt-3">
-                {idea.domains.map((d) => (
-                  <DomainRow key={d} domain={d} result={domainMap[d]} />
-                ))}
+      {/* Results */}
+      {results.length > 0 && (
+        <>
+          <p className="mt-6 text-sm text-muted-foreground">
+            {results.length} ideas with an available domain
+          </p>
+          <div className="mt-3 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {results.map((r) => (
+              <div key={r.name} className="flex flex-col rounded-xl border border-border bg-secondary/40 p-5">
+                <h3 className="font-display text-lg font-bold text-foreground">{r.name}</h3>
+                {r.why && <p className="mt-1 text-[12px] italic text-brand/90">{r.why}</p>}
+                <p className="mt-2 flex-1 text-sm leading-relaxed text-muted-foreground">{r.idea}</p>
+                {r.audience && (
+                  <p className="mt-2 text-[11px] uppercase tracking-wide text-muted-foreground/70">
+                    For: {r.audience}
+                  </p>
+                )}
+                <div className="mt-4 space-y-1.5 border-t border-border/50 pt-3">
+                  {r.available.map((d) => (
+                    <div key={d.domain} className="flex items-center justify-between gap-2 text-sm">
+                      <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
+                        <Check className="size-3.5 text-emerald-400" />
+                        {d.domain}
+                      </span>
+                      <span className="flex items-center gap-2">
+                        <span className="text-[11px] text-emerald-400">
+                          {d.confidence === 'likely' ? 'likely free' : 'available'}
+                        </span>
+                        {d.registerUrl && (
+                          <a
+                            href={d.registerUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-0.5 text-[11px] font-medium text-brand hover:underline"
+                          >
+                            register <ExternalLink className="size-3" />
+                          </a>
+                        )}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        </>
       )}
 
-      {!loading && ideas.length === 0 && !error && (
+      {!running && results.length === 0 && !error && (
         <div className="mt-8 rounded-xl border border-dashed border-border/60 bg-card/30 p-12 text-center">
           <p className="text-sm text-muted-foreground">
-            Enter a niche (or leave it blank) and hit Generate. Each idea comes with .com and .ai
-            availability checked automatically.
+            Describe a space, pick a naming style (or leave it as a mix), and hit generate. You will
+            only see names whose .com or .ai is actually available.
           </p>
         </div>
       )}
-    </div>
-  )
-}
-
-function DomainRow({ domain, result }: { domain: string; result?: DomainResult }) {
-  let icon = <HelpCircle className="size-3.5 text-muted-foreground/50" />
-  let label = 'checking...'
-  let labelClass = 'text-muted-foreground'
-
-  if (result) {
-    if (result.status === 'available') {
-      icon = <Check className="size-3.5 text-emerald-400" />
-      label = result.confidence === 'likely' ? 'likely available' : 'available'
-      labelClass = 'text-emerald-400'
-    } else if (result.status === 'taken') {
-      icon = <X className="size-3.5 text-red-400/70" />
-      label = 'taken'
-      labelClass = 'text-muted-foreground'
-    } else {
-      icon = <HelpCircle className="size-3.5 text-amber-400" />
-      label = 'unknown'
-      labelClass = 'text-amber-400'
-    }
-  }
-
-  const isAvailable = result?.status === 'available'
-
-  return (
-    <div className="flex items-center justify-between gap-2 text-sm">
-      <span className={isAvailable ? 'font-medium text-foreground' : 'text-muted-foreground'}>{domain}</span>
-      <span className="flex items-center gap-1.5">
-        <span className={`inline-flex items-center gap-1 text-[11px] ${labelClass}`}>
-          {icon}
-          {label}
-        </span>
-        {isAvailable && result?.registerUrl && (
-          <a
-            href={result.registerUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-0.5 text-[11px] font-medium text-brand hover:underline"
-          >
-            register <ExternalLink className="size-3" />
-          </a>
-        )}
-      </span>
     </div>
   )
 }

@@ -1,26 +1,55 @@
-import { NextResponse } from 'next/server'
-import { generateIdeas } from '@/lib/ops/ideas'
+import { findAvailableIdeas, type NameStyle } from '@/lib/ops/ideas'
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 60
+export const maxDuration = 120
 
-// POST { niche?: string, count?: number } -> generated ideas. Session-gated by proxy.ts.
+const VALID_STYLES: NameStyle[] = ['evocative', 'coined', 'compound', 'playful', 'literal']
+
+/**
+ * POST { niche?, styles?: NameStyle[], target?: number }
+ * Streams newline-delimited JSON events as it finds AVAILABLE ideas:
+ *   {"type":"progress","checked":N,"found":N,"round":N}
+ *   {"type":"done","results":[...]}
+ *   {"type":"error","error":"..."}
+ * Session-gated by proxy.ts.
+ */
 export async function POST(request: Request) {
   let niche = ''
-  let count = 6
+  let styles: NameStyle[] = []
+  let target = 20
   try {
     const body = await request.json()
     if (typeof body?.niche === 'string') niche = body.niche
-    if (typeof body?.count === 'number') count = Math.min(Math.max(body.count, 1), 10)
+    if (Array.isArray(body?.styles)) styles = body.styles.filter((s: unknown) => VALID_STYLES.includes(s as NameStyle))
+    if (typeof body?.target === 'number') target = Math.min(Math.max(body.target, 1), 30)
   } catch {
-    // empty body is fine (generates diverse ideas)
+    // defaults are fine
   }
 
-  try {
-    const ideas = await generateIdeas(niche, count)
-    return NextResponse.json({ ideas })
-  } catch (e) {
-    const message = e instanceof Error ? e.message : 'idea generation failed'
-    return NextResponse.json({ error: message }, { status: 500 })
-  }
+  const encoder = new TextEncoder()
+  const stream = new ReadableStream({
+    async start(controller) {
+      const send = (obj: unknown) => controller.enqueue(encoder.encode(JSON.stringify(obj) + '\n'))
+      try {
+        const results = await findAvailableIdeas({
+          niche,
+          styles,
+          target,
+          onProgress: (info) => send({ type: 'progress', ...info }),
+        })
+        send({ type: 'done', results })
+      } catch (e) {
+        send({ type: 'error', error: e instanceof Error ? e.message : 'generation failed' })
+      } finally {
+        controller.close()
+      }
+    },
+  })
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'application/x-ndjson; charset=utf-8',
+      'Cache-Control': 'no-store',
+    },
+  })
 }
