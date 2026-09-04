@@ -8,16 +8,18 @@ export const maxDuration = 60
 // Session-gated by proxy.ts.
 export async function POST(request: Request) {
   let names: string[] = []
+  let tlds: string[] | undefined
   try {
     const body = await request.json()
     if (Array.isArray(body?.names)) names = body.names.filter((n: unknown) => typeof n === 'string')
+    if (Array.isArray(body?.tlds)) tlds = body.tlds.filter((t: unknown) => typeof t === 'string')
   } catch {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
   }
   if (names.length === 0) return NextResponse.json({ error: 'No names provided' }, { status: 400 })
 
   try {
-    const results = await checkNames(names)
+    const results = await checkNames(names, tlds)
     return NextResponse.json({ results })
   } catch (e) {
     const message = e instanceof Error ? e.message : 'check failed'

@@ -114,12 +114,17 @@ async function checkDns(domain: string): Promise<DomainResult> {
   return { domain, tld, status: 'unknown', confidence: 'likely', method: 'dns', registerUrl: porkbunSearchUrl(domain) }
 }
 
+// Only .com/.net have a reliable authoritative RDAP (Verisign). For everything else
+// (.ai/.io/.co/.ca), rdap.org's bootstrap is unreliable. It returned false 404s for
+// registered .io/.co domains in testing, so we use a DNS signal (labeled 'likely')
+// instead of a wrong "confirmed". A wrong "confirmed available" is worse than an honest guess.
+const RDAP_AUTHORITATIVE_TLDS = new Set(['com', 'net'])
+
 export async function checkDomain(domain: string): Promise<DomainResult> {
   const clean = domain.trim().toLowerCase()
   const tld = clean.split('.').pop() || ''
-  // .com (and other gTLDs with RDAP) => authoritative RDAP. .ai => DNS fallback.
-  if (tld === 'ai') return checkDns(clean)
-  return checkRdap(clean)
+  if (RDAP_AUTHORITATIVE_TLDS.has(tld)) return checkRdap(clean)
+  return checkDns(clean)
 }
 
 /**
@@ -141,9 +146,15 @@ export async function checkDomains(domains: string[]): Promise<DomainResult[]> {
   return out
 }
 
-/** Build .com and .ai candidates from a base brand name (strips spaces/punctuation). */
-export function candidatesFor(name: string): string[] {
+/** The TLDs the Brand Lab can check. .com/.ai are the defaults. */
+export const SELECTABLE_TLDS = ['com', 'ai', 'io', 'co', 'ca'] as const
+export const DEFAULT_TLDS = ['com', 'ai']
+
+/** Build domain candidates from a base brand name for the given TLDs (defaults to .com/.ai). */
+export function candidatesFor(name: string, tlds: string[] = DEFAULT_TLDS): string[] {
   const base = name.toLowerCase().replace(/[^a-z0-9]/g, '')
   if (!base) return []
-  return [`${base}.com`, `${base}.ai`]
+  const valid = tlds.filter((t) => (SELECTABLE_TLDS as readonly string[]).includes(t))
+  const use = valid.length ? valid : DEFAULT_TLDS
+  return use.map((t) => `${base}.${t}`)
 }

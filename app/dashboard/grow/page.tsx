@@ -39,6 +39,8 @@ const STYLES: { id: NameStyle; label: string; hint: string }[] = [
   { id: 'literal', label: 'Literal', hint: 'Clear and descriptive' },
 ]
 
+const TLD_OPTIONS = ['com', 'ai', 'io', 'co', 'ca']
+
 const PERSPECTIVES: { id: Perspective; label: string; hint: string }[] = [
   { id: 'customer', label: 'End user', hint: 'The person using it is the hero' },
   { id: 'buyer', label: 'Buyer', hint: 'The business purchasing it is the hero' },
@@ -276,6 +278,13 @@ export default function GrowPage() {
     setStyles((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]))
   }
 
+  const toggleTld = (t: string) => {
+    setTlds((prev) => {
+      const next = prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]
+      return next.length ? next : prev // never allow zero TLDs selected
+    })
+  }
+
   // Frontend-driven loop: many small round requests instead of one long one, so we
   // never hit a serverless timeout. Results accumulate live until we reach the target
   // (20) or the user clicks Stop.
@@ -301,7 +310,7 @@ export default function GrowPage() {
         const res = await fetch('/api/ops/ideas-round', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ niche, styles, perspective, avoid: tried.slice(-200) }),
+          body: JSON.stringify({ niche, styles, perspective, tlds, avoid: tried.slice(-200) }),
         })
         if (!res.ok) {
           const d = await res.json().catch(() => ({}))
@@ -347,6 +356,7 @@ export default function GrowPage() {
   const [pasteResult, setPasteResult] = useState<{ available: number; checked: number } | null>(null)
   const [mode, setMode] = useState<'generate' | 'check'>('generate')
   const [showHow, setShowHow] = useState(false)
+  const [tlds, setTlds] = useState<string[]>(['com', 'ai'])
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [currentWorkspace, setCurrentWorkspace] = useState<string>('')
 
@@ -374,7 +384,7 @@ export default function GrowPage() {
         const res = await fetch('/api/ops/check-names', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ names: chunk }),
+          body: JSON.stringify({ names: chunk, tlds }),
         })
         if (!res.ok) {
           const d = await res.json().catch(() => ({}))
@@ -502,6 +512,28 @@ export default function GrowPage() {
           >
             Check my own
           </button>
+        </div>
+
+        {/* TLD selector (applies to both modes) */}
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <span className="w-24 shrink-0 text-[11px] uppercase tracking-wide text-muted-foreground">Extensions</span>
+          {TLD_OPTIONS.map((t) => {
+            const active = tlds.includes(t)
+            return (
+              <button
+                key={t}
+                type="button"
+                onClick={() => toggleTld(t)}
+                className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                  active
+                    ? 'border-brand bg-brand/15 font-medium text-foreground'
+                    : 'border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                }`}
+              >
+                .{t}
+              </button>
+            )
+          })}
         </div>
 
         {mode === 'generate' ? (

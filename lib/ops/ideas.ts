@@ -142,6 +142,7 @@ export interface FindOptions {
   target: number // how many AVAILABLE ideas to find
   maxRounds?: number
   batchSize?: number // names generated per round (smaller = lighter requests)
+  tlds?: string[] // which TLDs to check (defaults to .com/.ai)
   onProgress?: (info: { checked: number; found: number; round: number }) => void
 }
 
@@ -151,6 +152,7 @@ export interface OneRoundInput {
   perspective?: Perspective
   batchSize?: number
   avoid?: string[] // names already tried in previous rounds, so we don't repeat
+  tlds?: string[] // which TLDs to check (defaults to .com/.ai)
 }
 
 export interface OneRoundOutput {
@@ -170,13 +172,13 @@ export interface OneRoundOutput {
  * trademark checks, and returns ALL of them (including taken) with their available domains,
  * so the user sees the verdict on their own ideas. No AI generation involved.
  */
-export async function checkNames(names: string[]): Promise<IdeaResult[]> {
+export async function checkNames(names: string[], tlds?: string[]): Promise<IdeaResult[]> {
   const clean = Array.from(
     new Set(names.map((n) => n.trim()).filter(Boolean))
   ).slice(0, 25)
   if (clean.length === 0) return []
 
-  const allDomains = clean.flatMap((n) => candidatesFor(n))
+  const allDomains = clean.flatMap((n) => candidatesFor(n, tlds))
   const domainResults = await checkDomains(allDomains)
   const byDomain = new Map(domainResults.map((r) => [r.domain, r]))
 
@@ -184,7 +186,7 @@ export async function checkNames(names: string[]): Promise<IdeaResult[]> {
   // to the user, so drop them (same behavior as the generator).
   return clean
     .map((name) => {
-      const available = candidatesFor(name)
+      const available = candidatesFor(name, tlds)
         .map((d) => byDomain.get(d))
         .filter((r): r is DomainResult => !!r && r.status === 'available')
       return { name, available }
@@ -205,6 +207,7 @@ export async function runOneRound(input: OneRoundInput): Promise<OneRoundOutput>
   const { niche, styles, perspective = 'both' } = input
   const batchSize = input.batchSize ?? 8
   const avoid = input.avoid ?? []
+  const tlds = input.tlds
   const t0 = Date.now()
 
   const batch = await generateBatch(niche, styles, perspective, batchSize, avoid)
@@ -224,13 +227,13 @@ export async function runOneRound(input: OneRoundInput): Promise<OneRoundOutput>
     return { found: [], tried, checkedCount: 0 }
   }
 
-  const allDomains = fresh.flatMap((s) => candidatesFor(s.name))
+  const allDomains = fresh.flatMap((s) => candidatesFor(s.name, tlds))
   const domainResults = await checkDomains(allDomains)
   const byDomain = new Map(domainResults.map((r) => [r.domain, r]))
 
   const found: IdeaResult[] = []
   for (const s of fresh) {
-    const available = candidatesFor(s.name)
+    const available = candidatesFor(s.name, tlds)
       .map((d) => byDomain.get(d))
       .filter((r): r is DomainResult => !!r && r.status === 'available')
     if (available.length > 0) {
@@ -296,7 +299,7 @@ export async function findAvailableIdeas(opts: FindOptions): Promise<IdeaResult[
     }
 
     // Check all candidate domains for this batch (throttled for accuracy).
-    const allDomains = fresh.flatMap((s) => candidatesFor(s.name))
+    const allDomains = fresh.flatMap((s) => candidatesFor(s.name, opts.tlds))
     const chkStart = Date.now()
     const domainResults = await checkDomains(allDomains)
     const chkMs = Date.now() - chkStart
@@ -309,7 +312,7 @@ export async function findAvailableIdeas(opts: FindOptions): Promise<IdeaResult[
 
     for (const s of fresh) {
       if (results.length >= target) break
-      const candidates = candidatesFor(s.name)
+      const candidates = candidatesFor(s.name, opts.tlds)
       const available = candidates
         .map((d) => byDomain.get(d))
         .filter((r): r is DomainResult => !!r && r.status === 'available')

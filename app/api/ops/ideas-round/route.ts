@@ -21,6 +21,7 @@ export async function POST(request: Request) {
   let perspective: Perspective = 'both'
   let batchSize: number | undefined
   let avoid: string[] = []
+  let tlds: string[] | undefined
   try {
     const body = await request.json()
     if (typeof body?.niche === 'string') niche = body.niche
@@ -28,12 +29,13 @@ export async function POST(request: Request) {
     if (VALID_PERSPECTIVES.includes(body?.perspective)) perspective = body.perspective
     if (typeof body?.batchSize === 'number') batchSize = Math.min(Math.max(body.batchSize, 3), 15)
     if (Array.isArray(body?.avoid)) avoid = body.avoid.filter((a: unknown) => typeof a === 'string').slice(-200)
+    if (Array.isArray(body?.tlds)) tlds = body.tlds.filter((t: unknown) => typeof t === 'string')
   } catch {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
   }
 
   try {
-    const out = await runOneRound({ niche, styles, perspective, batchSize, avoid })
+    const out = await runOneRound({ niche, styles, perspective, batchSize, avoid, tlds })
     return NextResponse.json(out)
   } catch (e) {
     const message = e instanceof Error ? e.message : 'round failed'
