@@ -1,7 +1,7 @@
 ﻿'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Lightbulb, Sparkles, Loader2, Check, ExternalLink, ShieldAlert, Scale, Info, Star, Save, FolderOpen, Plus } from 'lucide-react'
+import { Lightbulb, Sparkles, Loader2, Check, ExternalLink, ShieldAlert, ShieldCheck, Scale, Info, Star, Save, FolderOpen, Plus } from 'lucide-react'
 
 type NameStyle = 'evocative' | 'coined' | 'compound' | 'playful' | 'literal'
 type Perspective = 'customer' | 'buyer' | 'both'
@@ -815,30 +815,64 @@ function IdeaCard({
       {r.audience && (
         <p className="mt-2 text-[11px] uppercase tracking-wide text-muted-foreground/70">For: {r.audience}</p>
       )}
-      <div className="mt-4 space-y-1.5 border-t border-border/50 pt-3">
-        {r.available.map((d) => (
-          <div key={d.domain} className="flex items-center justify-between gap-2 text-sm">
-            <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
-              <Check className="size-3.5 text-emerald-400" />
-              {d.domain}
-            </span>
-            <span className="flex items-center gap-2">
-              <span className="text-[11px] text-emerald-400">
-                {d.confidence === 'likely' ? 'likely free' : 'available'}
-              </span>
-              {d.registerUrl && (
-                <a
-                  href={d.registerUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-0.5 text-[11px] font-medium text-brand hover:underline"
+      <div className="mt-4 space-y-2.5 border-t border-border/50 pt-3">
+        {r.available.map((d) => {
+          const v = verify[d.domain]
+          return (
+            <div key={d.domain} className="text-sm">
+              <div className="flex items-center justify-between gap-2">
+                <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
+                  <Check className="size-3.5 text-emerald-400" />
+                  {d.domain}
+                </span>
+                <span className="flex items-center gap-2">
+                  <span className="text-[11px] text-emerald-400">
+                    {d.confidence === 'likely' ? 'likely free' : 'available'}
+                  </span>
+                  {d.confidence === 'likely' && (
+                    <button
+                      type="button"
+                      onClick={() => verifyDomain(d.domain)}
+                      disabled={v?.loading}
+                      title="Confirm authoritatively via Porkbun (rate-limited ~1 per 10s)"
+                      className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:border-brand hover:text-brand disabled:opacity-50"
+                    >
+                      {v?.loading ? <Loader2 className="size-3 animate-spin" /> : <ShieldCheck className="size-3" />}
+                      {v?.loading ? 'Verifying' : 'Verify'}
+                    </button>
+                  )}
+                  {d.registerUrl && (
+                    <a
+                      href={d.registerUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-0.5 text-[11px] font-medium text-brand hover:underline"
+                    >
+                      register <ExternalLink className="size-3" />
+                    </a>
+                  )}
+                </span>
+              </div>
+              {v && !v.loading && (
+                <p
+                  className={`mt-1 pl-5 text-[11px] ${
+                    v.available === true
+                      ? 'text-emerald-400'
+                      : v.available === false
+                        ? 'text-red-400'
+                        : 'text-muted-foreground'
+                  }`}
                 >
-                  register <ExternalLink className="size-3" />
-                </a>
+                  {v.available === true
+                    ? `Confirmed available${v.price ? ` (${v.price})` : ''}${v.premium ? ' - premium' : ''}`
+                    : v.available === false
+                      ? 'Confirmed taken'
+                      : v.message || 'Could not confirm'}
+                </p>
               )}
-            </span>
-          </div>
-        ))}
+            </div>
+          )
+        })}
       </div>
 
       {/* Trademark signal (preliminary, not clearance) */}
