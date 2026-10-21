@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { generateBrief, getLatestBrief } from '@/lib/ops/brief'
+import { hasBearer, hasSession } from '@/lib/ops/guard'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
@@ -7,16 +8,19 @@ export const maxDuration = 120
 /**
  * GET: two behaviors.
  * - Vercel cron (sends `Authorization: Bearer <CRON_SECRET>`): generate a fresh brief + email it.
- * - Otherwise (dashboard, session-gated by proxy.ts): return the latest stored brief.
+ * - Otherwise (the dashboard, with a session): return the latest stored brief.
  * Vercel cron jobs invoke endpoints via GET, so generation lives here.
+ *
+ * The non-cron branch used to return the stored brief to anybody, trusting
+ * proxy.ts to have stopped them. It checks for itself now.
  */
 export async function GET(request: Request) {
-  const cronSecret = process.env.CRON_SECRET
-  const auth = request.headers.get('authorization') || ''
-  const isCron = !!cronSecret && auth === `Bearer ${cronSecret}`
-
-  if (isCron) {
+  if (hasBearer(request, process.env.CRON_SECRET)) {
     return runAndEmail()
+  }
+
+  if (!hasSession(request)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const brief = await getLatestBrief()
@@ -25,15 +29,11 @@ export async function GET(request: Request) {
 
 /**
  * POST: generate a fresh brief and email it now (the "Run now" button on the dashboard).
- * proxy.ts exempts POST here; we accept a logged-in session or the cron secret.
+ * proxy.ts exempts POST here, so this check is the only one — accept a
+ * logged-in session or the cron secret, and nothing else.
  */
 export async function POST(request: Request) {
-  const cronSecret = process.env.CRON_SECRET
-  const auth = request.headers.get('authorization') || ''
-  const isCron = !!cronSecret && auth === `Bearer ${cronSecret}`
-  const isSession = request.headers.get('cookie')?.includes('quadropus_session=1')
-
-  if (!isCron && !isSession) {
+  if (!hasBearer(request, process.env.CRON_SECRET) && !hasSession(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   return runAndEmail()

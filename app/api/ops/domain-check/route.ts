@@ -1,11 +1,15 @@
 import { NextResponse } from 'next/server'
 import { checkDomains } from '@/lib/ops/domains'
+import { requireOps } from '@/lib/ops/guard'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
 
-// POST { domains: string[] } -> availability results. Session-gated by proxy.ts.
+// POST { domains: string[] } -> availability results.
 export async function POST(request: Request) {
+  const refused = requireOps(request, 'lookup')
+  if (refused) return refused
+
   let domains: string[] = []
   try {
     const body = await request.json()

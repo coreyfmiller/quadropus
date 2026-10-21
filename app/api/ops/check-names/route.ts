@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server'
 import { checkNames } from '@/lib/ops/ideas'
+import { requireOps } from '@/lib/ops/guard'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 // POST { names: string[] } -> availability + trademark for each user-supplied name.
-// Session-gated by proxy.ts.
 export async function POST(request: Request) {
+  const refused = requireOps(request, 'lookup')
+  if (refused) return refused
+
   let names: string[] = []
   let tlds: string[] | undefined
   try {

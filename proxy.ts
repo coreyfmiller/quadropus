@@ -11,10 +11,22 @@ import type { NextRequest } from 'next/server'
 
 const SESSION_COOKIE = 'quadropus_session'
 
-// TEMPORARY: auth gate disabled while building. Flip back to true (or wire to an env
-// var like process.env.AUTH_ENABLED === 'true') to re-enable the login gate. The login
-// page and /api/auth routes remain in place, so re-enabling is just this one line.
-const AUTH_ENABLED = false
+/**
+ * Defaults to ON, and can only be switched off by explicitly setting
+ * AUTH_ENABLED=false in the environment.
+ *
+ * This used to be a hardcoded `false` with a "TEMPORARY, flip it back" comment.
+ * It shipped, and the entire internal dashboard — the Vercel API token, the
+ * health report across every site, the lead store, and the endpoints that spend
+ * Gemini and Porkbun quota — was reachable by anyone for weeks.
+ *
+ * So: no hardcoded off switch. Forgetting to set an env var now fails secure,
+ * and disabling the gate takes a deliberate act that is visible in the Vercel
+ * settings rather than invisible in a source comment. The routes themselves
+ * also check the session (see lib/ops/guard.ts), so this is the outer wall
+ * rather than the only one.
+ */
+const AUTH_ENABLED = process.env.AUTH_ENABLED !== 'false'
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl

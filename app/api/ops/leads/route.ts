@@ -1,10 +1,15 @@
 import { NextResponse } from 'next/server'
 import { getLeads, addLead, type NewLead } from '@/lib/ops/leads'
+import { hasBearer, requireOps } from '@/lib/ops/guard'
 
 export const dynamic = 'force-dynamic'
 
-// GET: list leads. Protected by the session gate in proxy.ts (must be logged in).
-export async function GET() {
+// GET: list leads. Personal data, so it checks the session itself rather than
+// relying only on proxy.ts.
+export async function GET(request: Request) {
+  const refused = requireOps(request)
+  if (refused) return refused
+
   try {
     const leads = await getLeads()
     return NextResponse.json({ leads, count: leads.length })
@@ -23,9 +28,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Lead ingestion not configured' }, { status: 500 })
   }
 
-  const auth = request.headers.get('authorization') || ''
-  const provided = auth.startsWith('Bearer ') ? auth.slice(7) : ''
-  if (provided !== token) {
+  // proxy.ts exempts POST here so FundyLaunch/FundyLogic can reach it
+  // cross-origin, which makes this bearer check the only gate on the path.
+  if (!hasBearer(request, token)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

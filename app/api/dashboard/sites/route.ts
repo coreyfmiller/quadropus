@@ -1,8 +1,19 @@
 import { NextResponse } from 'next/server'
+import { requireOps } from '@/lib/ops/guard'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+/**
+ * Lists every Vercel project on the account.
+ *
+ * Reads with VERCEL_API_TOKEN and enumerates the whole team, so it must never
+ * answer an anonymous caller — it was doing exactly that, complete with project
+ * ids and custom domains.
+ */
+export async function GET(request: Request) {
+  const refused = requireOps(request)
+  if (refused) return refused
+
   const token = process.env.VERCEL_API_TOKEN
   const teamId = process.env.VERCEL_TEAM_ID
   if (!token || !teamId) {

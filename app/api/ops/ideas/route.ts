@@ -1,4 +1,5 @@
 import { findAvailableIdeas, type NameStyle, type Perspective } from '@/lib/ops/ideas'
+import { requireOps } from '@/lib/ops/guard'
 
 export const dynamic = 'force-dynamic'
 // Accuracy over speed: throttled/retried domain checks take longer, so use the max budget.
@@ -13,9 +14,15 @@ const VALID_PERSPECTIVES: Perspective[] = ['customer', 'buyer', 'both']
  *   {"type":"progress","checked":N,"found":N,"round":N}
  *   {"type":"done","results":[...]}
  *   {"type":"error","error":"..."}
- * Session-gated by proxy.ts.
+ *
+ * Checks the session itself rather than trusting proxy.ts, and rate-limits:
+ * this is the most expensive endpoint in the project, and it spends real money
+ * on every call.
  */
 export async function POST(request: Request) {
+  const refused = requireOps(request, 'generate')
+  if (refused) return refused
+
   let niche = ''
   let styles: NameStyle[] = []
   let perspective: Perspective = 'both'

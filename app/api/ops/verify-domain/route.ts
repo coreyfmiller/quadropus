@@ -1,13 +1,17 @@
 import { NextResponse } from 'next/server'
 import { porkbunCheck } from '@/lib/ops/porkbun'
+import { requireOps } from '@/lib/ops/guard'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 20
 
 // POST { domain } -> authoritative Porkbun availability for ONE domain.
-// Rate-limited by Porkbun (~1 / 10s), so this is a single on-demand confirm.
-// Session-gated by proxy.ts.
+// Porkbun allows roughly one request every 10 seconds *per account*, so an
+// unthrottled caller here exhausts the budget this tool depends on.
 export async function POST(request: Request) {
+  const refused = requireOps(request, 'porkbun')
+  if (refused) return refused
+
   let domain = ''
   try {
     const body = await request.json()

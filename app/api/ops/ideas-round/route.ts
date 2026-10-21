@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { runOneRound, type NameStyle, type Perspective } from '@/lib/ops/ideas'
+import { requireOps } from '@/lib/ops/guard'
 
 export const dynamic = 'force-dynamic'
 // One round is quick; keep a comfortable budget but this should finish in ~10-30s.
@@ -13,9 +14,14 @@ const VALID_PERSPECTIVES: Perspective[] = ['customer', 'buyer', 'both']
  * Runs ONE generate+check pass and returns { found, tried, checkedCount }.
  * The frontend calls this repeatedly, passing back the growing `avoid` list,
  * to accumulate results without ever risking a serverless timeout.
- * Session-gated by proxy.ts.
+ *
+ * Shares the `generate` budget with /api/ops/ideas, since the frontend calls
+ * this one in a loop and each pass spends Gemini quota.
  */
 export async function POST(request: Request) {
+  const refused = requireOps(request, 'generate')
+  if (refused) return refused
+
   let niche = ''
   let styles: NameStyle[] = []
   let perspective: Perspective = 'both'
