@@ -41,21 +41,38 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  const source = typeof body.source === 'string' ? body.source : ''
-  const email = typeof body.email === 'string' ? body.email : ''
-  if (!source || !email) {
-    return NextResponse.json({ error: 'source and email are required' }, { status: 400 })
+  const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : undefined)
+
+  const source = str(body.source)
+  const email = str(body.email)
+  const phone = str(body.phone)
+
+  // A lead needs a source and *some* way to reach the person. Requiring `email`
+  // specifically rejected every phone lead from the voice agent, which posts a
+  // customer number and often no email at all — the transcript only yields one if
+  // the caller happened to spell it out.
+  if (!source) {
+    return NextResponse.json({ error: 'source is required' }, { status: 400 })
+  }
+  if (!email && !phone) {
+    return NextResponse.json({ error: 'email or phone is required' }, { status: 400 })
   }
 
-  const str = (v: unknown) => (typeof v === 'string' ? v : undefined)
+  // The senders disagree on what the free-text field is called: the web forms send
+  // `message` or `details`, the voice webhook sends `summary`. Accept all three
+  // rather than silently storing a lead with no content.
+  const structured = body.structured
   const lead: NewLead = {
     source,
     email,
+    phone,
     name: str(body.name) || '',
     business: str(body.business),
-    phone: str(body.phone),
-    message: str(body.message ?? body.details),
+    message: str(body.message ?? body.details ?? body.summary),
+    wants: str(body.wants),
     formType: str(body.formType),
+    structured:
+      structured && typeof structured === 'object' ? (structured as Record<string, unknown>) : undefined,
   }
 
   try {

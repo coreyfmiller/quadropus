@@ -19,3 +19,5 @@ node_modules
 # TypeScript incremental build output
 tsconfig.tsbuildinfo
 *.tsbuildinfo
+
+.env*

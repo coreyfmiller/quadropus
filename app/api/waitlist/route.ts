@@ -28,19 +28,27 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // Also store in Vercel Blob for a persistent list
+    // Also store in Vercel Blob for a persistent list.
+    //
+    // PRIVATE. This file is every email address that ever signed up. It used to be
+    // written with `access: "public"` and `addRandomSuffix: false`, which put the whole
+    // list at a guessable URL that needed no credential to read — a ready-made list for
+    // anyone who found the store hostname. Private blobs need the store token, so the
+    // read below passes `access: 'private'` as well.
     try {
-      const { put, list: blobList } = await import("@vercel/blob")
+      const { put, get } = await import("@vercel/blob")
       const BLOB_KEY = "quadropus/waitlist.json"
 
       let entries: { email: string; date: string }[] = []
 
-      // Get existing entries
-      const { blobs } = await blobList({ prefix: "quadropus/" })
-      const existing = blobs.find((b) => b.pathname === BLOB_KEY)
-      if (existing) {
-        const res = await fetch(existing.url)
-        entries = await res.json()
+      // Get existing entries. `get` resolves to null only when nothing has been
+      // written yet; a store that can't be reached throws, which the outer catch
+      // logs — and crucially it skips the `put` below, so an unreachable read can
+      // never overwrite the list with a single entry and lose every prior signup.
+      const found = await get(BLOB_KEY, { access: "private", useCache: false })
+      if (found?.stream) {
+        const parsed = JSON.parse(await new Response(found.stream).text())
+        if (Array.isArray(parsed)) entries = parsed
       }
 
       // Check for duplicates
@@ -52,8 +60,9 @@ export async function POST(req: NextRequest) {
       entries.push({ email: email.toLowerCase(), date: new Date().toISOString() })
 
       await put(BLOB_KEY, JSON.stringify(entries), {
-        access: "public",
-        addRandomSuffix: false,
+        access: "private",
+        contentType: "application/json",
+        allowOverwrite: true,
       })
     } catch (err) {
       // Blob storage is optional — notification email is the important part

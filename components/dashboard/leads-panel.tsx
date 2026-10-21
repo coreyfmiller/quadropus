@@ -7,10 +7,12 @@ interface Lead {
   id: string
   source: string
   name: string
-  email: string
+  // Optional: a phone lead from the voice agent usually has no email.
+  email?: string
   business?: string
   phone?: string
   message?: string
+  wants?: string
   formType?: string
   createdAt: string
 }
@@ -18,6 +20,7 @@ interface Lead {
 const SOURCE_LABEL: Record<string, string> = {
   fundylaunch: 'FundyLaunch',
   fundylogic: 'FundyLogic',
+  'fundylogic-voice': 'FundyLogic (call)',
 }
 
 function timeAgo(iso: string) {
@@ -99,7 +102,7 @@ export function LeadsPanel() {
               <div className="flex items-center justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-2">
                   <span className="truncate text-sm font-medium text-foreground">
-                    {lead.name || lead.email}
+                    {lead.name || lead.email || lead.phone || 'Unnamed lead'}
                   </span>
                   <span className="shrink-0 rounded-full bg-brand/12 px-2 py-0.5 text-[10px] font-medium text-brand">
                     {SOURCE_LABEL[lead.source] || lead.source}
@@ -108,9 +111,12 @@ export function LeadsPanel() {
                 <span className="shrink-0 text-[11px] text-muted-foreground">{timeAgo(lead.createdAt)}</span>
               </div>
               <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
-                <span className="inline-flex items-center gap-1">
-                  <Mail className="size-3" /> {lead.email}
-                </span>
+                {/* A call lead has no email; don't render a mail icon with nothing beside it. */}
+                {lead.email && (
+                  <span className="inline-flex items-center gap-1">
+                    <Mail className="size-3" /> {lead.email}
+                  </span>
+                )}
                 {lead.business && (
                   <span className="inline-flex items-center gap-1">
                     <Building2 className="size-3" /> {lead.business}
@@ -122,6 +128,11 @@ export function LeadsPanel() {
                   </span>
                 )}
               </div>
+              {lead.wants && (
+                <p className="mt-1.5 text-[11px] text-muted-foreground">
+                  Looking for: <span className="text-foreground/80">{lead.wants}</span>
+                </p>
+              )}
               {lead.message && (
                 <p className="mt-1.5 line-clamp-2 text-[12px] text-foreground/80">{lead.message}</p>
               )}

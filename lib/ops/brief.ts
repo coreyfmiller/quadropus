@@ -6,7 +6,7 @@
 
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { generateText } from 'ai'
-import { put, list } from '@vercel/blob'
+import { put, get } from '@vercel/blob'
 import { runHealthChecks } from './health'
 import { getLeads } from './leads'
 
@@ -25,7 +25,16 @@ export interface DailyBrief {
 }
 
 export async function generateBrief(): Promise<DailyBrief> {
-  const [health, leads] = await Promise.all([runHealthChecks(), getLeads()])
+  // `getLeads` now throws when the lead store is unreachable rather than passing off
+  // a broken store as "no leads". The brief still has useful health reporting to do in
+  // that case, so it degrades instead of failing — but it logs, so the cause is findable.
+  const [health, leads] = await Promise.all([
+    runHealthChecks(),
+    getLeads().catch((e) => {
+      console.error('[ops/brief] lead store unreachable; briefing without leads:', e)
+      return []
+    }),
+  ])
 
   const since = Date.now() - 24 * 60 * 60 * 1000
   const newLeads = leads.filter((l) => new Date(l.createdAt).getTime() >= since)
@@ -76,9 +85,11 @@ export async function generateBrief(): Promise<DailyBrief> {
   }
 
   // Persist latest brief so the dashboard can show it without regenerating.
+  // Private: the brief summarises leads by name and reports which systems are
+  // down, which is a map of where to attack. Never `access: 'public'`.
   try {
     await put(BLOB_KEY, JSON.stringify(brief), {
-      access: 'public',
+      access: 'private',
       contentType: 'application/json',
       allowOverwrite: true,
     })
@@ -91,13 +102,13 @@ export async function generateBrief(): Promise<DailyBrief> {
 
 export async function getLatestBrief(): Promise<DailyBrief | null> {
   try {
-    const { blobs } = await list({ prefix: BLOB_KEY, limit: 1 })
-    const found = blobs.find((b) => b.pathname === BLOB_KEY)
-    if (!found) return null
-    const res = await fetch(found.url, { cache: 'no-store' })
-    if (!res.ok) return null
-    return (await res.json()) as DailyBrief
-  } catch {
+    // null means no brief has been generated yet, which is a normal state.
+    const found = await get(BLOB_KEY, { access: 'private', useCache: false })
+    if (!found?.stream) return null
+    return JSON.parse(await new Response(found.stream).text()) as DailyBrief
+  } catch (e) {
+    // The dashboard can live without a cached brief, but say why it's missing.
+    console.error('[ops/brief] could not read the latest brief:', e)
     return null
   }
 }
